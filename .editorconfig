@@ -101,7 +101,7 @@ dotnet_diagnostic.VSTHRD100.severity = error  # avoid async void
 
 #### Two habits this project deliberately drops ####
 #
-# See docs/adr/0009-error-handling-and-problem-details.md.
+# See docs/adr/0009-no-catch-all-handlers.md.
 #
 # 1. #region inside a method body. A region around "the validation part" is a
 #    method waiting to be extracted. Regions are disallowed outright; if code
@@ -110,9 +110,8 @@ dotnet_diagnostic.VSTHRD100.severity = error  # avoid async void
 #    values; unexpected ones belong to the global exception handler. A handler
 #    that catches everything hides which of the two it is producing.
 #
-# Both are enforced by the analyzers in build/analyzers.ruleset and by a
-# Roslyn analyzer test in Relay.Application.UnitTests. They cannot be enforced
-# by .editorconfig alone, which is why they are also asserted in CI.
+# Neither can be expressed as an .editorconfig rule, so both are enforced by
+# build/check-style.sh, which the CI quality job runs over src/.
 
 #### Documentation ####
 
@@ -145,3 +144,27 @@ dotnet_diagnostic.CA1716.severity = none
 # built on (ADR 0005). The rule exists to prevent ambiguous call sites in
 # languages without type inference; here it would forbid the pattern outright.
 dotnet_diagnostic.CA1000.severity = none
+
+#### Test projects ####
+
+[tests/**/*.cs]
+
+# Test method names are sentences, not identifiers anyone calls. The naming
+# convention here is `<ScenarioId>_<Condition>_<ExpectedOutcome>`, where the
+# scenario id matches a row in docs/test-plan.md — so a failing test name points
+# at a numbered scenario rather than only at a method. CA1707 would forbid the
+# separators that make that readable.
+dotnet_diagnostic.CA1707.severity = none
+
+# Test classes are instantiated by the runner and are not a public API.
+dotnet_diagnostic.CA1034.severity = none
+dotnet_diagnostic.CA1052.severity = none
+
+# Assertions frequently discard a return value on purpose.
+dotnet_diagnostic.CA1806.severity = none
+
+# Test data includes deliberately malformed input; culture-aware string handling
+# is not the subject under test.
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1307.severity = none
+dotnet_diagnostic.CA1861.severity = none

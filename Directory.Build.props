@@ -71,11 +71,23 @@
     <DebugType>portable</DebugType>
   </PropertyGroup>
 
-  <!-- Test projects: not packable, and no XML docs required. -->
+  <!--
+    Test projects: not packable, and no XML docs required.
+
+    TestingPlatformDotnetTestSupport opts `dotnet test` into Microsoft.Testing.
+    Platform. xunit v3 runs on that platform rather than on VSTest, and the .NET
+    10 SDK no longer bridges the two — without this, `dotnet test` fails before
+    running anything.
+  -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+
+    <!-- An MTP test project hosts its own runner, so it builds as an executable. -->
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
 </Project>
