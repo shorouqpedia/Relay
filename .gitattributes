@@ -1,0 +1,12 @@
+# Normalise line endings in the repository to LF. Working copies get the
+# platform default; the committed bytes stay stable regardless of who commits.
+* text=auto eol=lf
+
+*.sln    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+*.sh     text eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
