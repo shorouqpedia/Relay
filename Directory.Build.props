@@ -1,0 +1,81 @@
+<Project>
+
+  <!--
+    Repo-wide build settings.
+
+    Every setting here applies to every project. Anything a single project needs
+    to differ on, it overrides locally — and when it does, it says why in a
+    comment on the override, not here.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>Relay</Product>
+    <Authors>Relay</Authors>
+    <RepositoryType>git</RepositoryType>
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <!--
+    Warnings are errors, from the first commit.
+
+    This is the opposite of the usual advice to introduce it gradually, and it is
+    deliberate: on a greenfield codebase the backlog is empty, so the cost of the
+    strict setting is zero today and rises every week it is deferred. There is no
+    later moment at which turning this on gets cheaper.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors></WarningsNotAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <AnalysisModeSecurity>All</AnalysisModeSecurity>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    NuGetAuditMode=all audits transitive dependencies, not just direct ones.
+    Most reported vulnerabilities in a .NET app arrive transitively, so auditing
+    only direct references answers the easy half of the question. `direct` is the
+    default; `all` is the one worth having.
+
+    Audit findings are warnings, and warnings are errors here — so a newly
+    published advisory against any package in the graph fails the build. That is
+    the intended behaviour: a build that goes red on a CVE is doing its job.
+  -->
+  <PropertyGroup>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+
+  <!--
+    Deterministic builds in CI so the same source produces the same bytes, and
+    source-linked symbols so a stack trace from a container maps back to a commit.
+  -->
+  <PropertyGroup>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <Deterministic>true</Deterministic>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <!-- Test projects: not packable, and no XML docs required. -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

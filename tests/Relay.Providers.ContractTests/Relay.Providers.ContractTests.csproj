@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    One test suite, run once per provider assembly.
+
+    The suite is an abstract base class asserting the behaviour every provider
+    must exhibit — including the unhappy parts of the contract: surfacing a
+    transient failure as retryable, honouring Retry-After, never throwing a
+    vendor exception type across the boundary, and being safe to call twice with
+    the same idempotency key. Each provider adds a sealed subclass and nothing
+    else. If a provider cannot pass it, the abstraction is wrong, not the test.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Relay.Providers.*\*.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+</Project>

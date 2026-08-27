@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Relay.Domain has no ProjectReference and no PackageReference, and that is a
+    load-bearing property rather than a coincidence of it being small. The moment
+    the domain can reference a package, it can reference a package that knows
+    about HTTP, or EF Core, or a provider SDK — and the dependency rule stops
+    being checkable by looking at one file.
+
+    A test in Relay.Domain.UnitTests asserts this file stays empty of references.
+  -->
+
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Stand-in upstreams for local development and integration tests.
+
+    These deliberately misbehave on demand: slow responses, 429s with Retry-After,
+    intermittent 500s, delivery receipts that arrive late, arrive twice, or never
+    arrive at all. Testing the happy path against a real provider sandbox proves
+    very little; the failure modes are the part worth having a test for.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>
