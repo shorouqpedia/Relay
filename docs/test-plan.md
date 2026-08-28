@@ -235,3 +235,43 @@ These tests also caught a real defect on first run: `AddRefitClient` resolves
 through a reflection-based builder that Refit 15 no longer ships by default, so
 the provider registered, built cleanly, and threw `NotSupportedException` on its
 first resolve. Nothing before this point exercised the real container.
+
+## IT — HTTP surface, end to end
+
+`tests/Relay.IntegrationTests/Api/MessageEndpointTests.cs`
+
+Real requests through the real host against a real database. Nothing is
+substituted, so these cover what only exists once the pieces are assembled: the
+validation filter actually running, error mapping producing the status a client
+branches on, and idempotency surviving an identical second request.
+
+| Id | Scenario | Expected |
+|---|---|---|
+| IT01 | A valid submission | 201, with the id and a Location header |
+| IT02 | The same key submitted twice | 201 then **200**, same message id |
+| IT03 | The key supplied as a header | Deduplicates the same way |
+| IT04 | No key at all, identical requests | Deduplicates on the derived key |
+| IT05 | A recipient invalid for its channel | 400 with `message.recipient_invalid_for_channel` |
+| IT06 | An empty body | 400 with per-field errors from the filter |
+| IT07 | A subject on SMS | 400 |
+| IT08 | Reading a submitted message | 200 with an empty attempt history |
+| IT09 | Reading a message that does not exist | 404, `application/problem+json` |
+| IT10 | Cancelling while pending | 204, and the message reads `Cancelled` |
+| IT11 | Cancelling twice | 204 again |
+| IT12 | Cancelling a message that does not exist | 404 |
+
+**Why IT02 expects 200 rather than 409.** A caller retrying after a timeout wants
+the outcome of their message. An error makes them handle a failure for something
+that worked, and the status is the only thing distinguishing the retry that
+landed from the one that did not.
+
+**What this suite caught on first run.** Every submission returned a bare 400
+with no detail. `ChannelType` was arriving as `"Email"` and System.Text.Json
+binds enums from numbers by default, so the body failed to deserialise before any
+code ran. Nothing below the HTTP boundary could have found it — the handler tests
+construct the command directly.
+
+It also caught an empty connection string passing a null check: `appsettings.json`
+ships the key with an empty value so CI can assert no secret was committed, which
+means the absent case in practice is `""` and not `null`. The failure surfaced far
+away, inside the Npgsql driver.

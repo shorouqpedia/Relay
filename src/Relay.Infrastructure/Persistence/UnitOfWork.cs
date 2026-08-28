@@ -32,6 +32,17 @@ internal sealed class UnitOfWork(RelayDbContext context, TimeProvider clock) : I
         {
             return await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
+        catch (DbUpdateException exception) when (IsIdempotencyKeyViolation(exception))
+        {
+            // Checked before the concurrency case, because a unique-index
+            // violation is also a DbUpdateException and the more specific reading
+            // is the useful one. The submit handler turns this back into an
+            // ordinary result; nothing above the persistence layer ever sees a
+            // Postgres error code.
+            throw new DuplicateIdempotencyKeyException(
+                "A message with this idempotency key already exists.",
+                exception);
+        }
         catch (DbUpdateConcurrencyException exception)
         {
             // Translated at the boundary of the persistence layer so that nothing
@@ -43,6 +54,23 @@ internal sealed class UnitOfWork(RelayDbContext context, TimeProvider clock) : I
                 exception);
         }
     }
+
+    /// <summary>
+    /// Whether a failed write was the idempotency index refusing a duplicate.
+    /// </summary>
+    /// <remarks>
+    /// Matched on the constraint name rather than only on the SQLSTATE, because
+    /// <c>23505</c> means "some unique constraint was violated" and this system has
+    /// several. Treating any of them as a duplicate submission would silently
+    /// return the wrong message to a caller whose insert failed for an unrelated
+    /// reason.
+    /// </remarks>
+    private static bool IsIdempotencyKeyViolation(DbUpdateException exception) =>
+        exception.InnerException is Npgsql.PostgresException
+        {
+            SqlState: "23505",
+            ConstraintName: "ix_messages_idempotency_key",
+        };
 
     private void WriteOutboxRows()
     {

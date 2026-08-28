@@ -33,7 +33,9 @@ that was correct at the time is part of the history.
 | [0004](0004-rich-domain-model.md) | Rich domain model over anemic entities | Accepted |
 | [0005](0005-result-over-exceptions.md) | `Result<T, Error>` for expected failures | Accepted |
 | [0006](0006-minimal-apis-over-controllers.md) | Minimal APIs over controllers | Accepted |
-| [0007](0007-decorator-chain-ordering.md) | Provider decorator chain, and its order | Accepted |
+| [0007](0007-decorator-chain-ordering.md) | Provider decorator chain, and its order | Accepted, amended |
 | [0008](0008-at-least-once-and-idempotency.md) | At-least-once delivery with idempotent effects | Accepted |
 | [0009](0009-no-catch-all-handlers.md) | No catch-all `try/catch`, no `#region` | Accepted |
 | [0010](0010-testcontainers-over-in-memory.md) | Testcontainers over in-memory fakes | Accepted |
+| [0011](0011-pull-based-pipeline.md) | A pull-based delivery pipeline | Accepted |
+| [0012](0012-no-mediator.md) | No mediator | Accepted |

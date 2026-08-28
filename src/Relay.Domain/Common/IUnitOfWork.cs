@@ -67,3 +67,38 @@ public sealed class ConcurrencyConflictException : Exception
     {
     }
 }
+
+/// <summary>
+/// Thrown when the idempotency index refuses a duplicate submission.
+/// </summary>
+/// <remarks>
+/// An exception rather than a <see cref="Result"/>, for the same reason as
+/// <see cref="ConcurrencyConflictException"/>: it arrives from the commit, which
+/// has no other channel, and it interrupts a transaction that cannot continue.
+/// <para>
+/// Unlike a concurrency conflict, this one <em>is</em> actionable — the submit
+/// handler catches it, reads back the message the winner created, and returns
+/// that. So it never travels further than the method that provokes it, and the
+/// caller sees an ordinary successful response (ADR 0008).
+/// </para>
+/// </remarks>
+public sealed class DuplicateIdempotencyKeyException : Exception
+{
+    /// <summary>Creates the exception with a default message.</summary>
+    public DuplicateIdempotencyKeyException()
+        : base("A message with this idempotency key already exists.")
+    {
+    }
+
+    /// <summary>Creates the exception with a specific message.</summary>
+    public DuplicateIdempotencyKeyException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception wrapping the store's own error.</summary>
+    public DuplicateIdempotencyKeyException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

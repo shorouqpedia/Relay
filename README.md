@@ -13,10 +13,10 @@ the other end are unreliable in slow, partial, ambiguous ways, and the design ha
 to be honest about what it does and does not know.
 
 > **Status: in progress.** The domain, the provider contract, the first
-> provider, persistence, and the delivery pipeline are built and tested — 112
-> tests, including 14 that run against PostgreSQL in a container. The HTTP
-> surface, the remaining providers, observability, containers, and CI are not
-> built yet. See [Roadmap](#roadmap).
+> provider, persistence, the delivery pipeline, and the HTTP surface are built
+> and tested — 124 tests, 26 of which drive the real host against PostgreSQL in
+> a container. The remaining providers, callbacks, observability, containers,
+> and CI are not built yet. See [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -142,8 +142,8 @@ inconvenient, which is not the same thing.
 | Persistence: EF Core mapping, migrations, outbox | Done |
 | Delivery pipeline: dispatch, reconciliation, recovery loops | Done |
 | Decorator chain: resilience, rate limiting, metrics | Done |
-| HTTP surface: minimal APIs, ProblemDetails, versioning | Next |
-| Remaining providers, incl. the zero-edit demonstration | |
+| HTTP surface: minimal APIs, ProblemDetails, versioning | Done |
+| Remaining providers, incl. the zero-edit demonstration | Next |
 | Callbacks: HMAC verification, receipts, reconciliation | |
 | Observability: OpenTelemetry, health checks | |
 | Containers and one-command startup | |

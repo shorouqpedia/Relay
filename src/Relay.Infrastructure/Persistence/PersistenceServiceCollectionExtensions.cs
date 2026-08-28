@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Relay.Domain.Common;
+using Relay.Application.Messages;
 using Relay.Domain.Messaging;
 using Relay.Infrastructure.Persistence.Outbox;
 using Relay.Infrastructure.Persistence.Repositories;
@@ -31,11 +32,21 @@ public static class PersistenceServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        string connectionString = configuration.GetConnectionString("Relay")
-            ?? throw new InvalidOperationException(
+        string? connectionString = configuration.GetConnectionString("Relay");
+
+        // Empty, not just null. appsettings.json ships the key with an empty value
+        // so that the shape of the configuration is visible and CI can assert no
+        // secret was committed — which means the absent case in practice is "" and
+        // not null. Checking only for null let that through, and the failure
+        // surfaced far away as "the ConnectionString property has not been
+        // initialized" from inside the driver.
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
                 "Connection string 'Relay' is not configured. The process cannot "
                 + "usefully start without a database, so this fails at startup "
                 + "rather than on the first request.");
+        }
 
         services.AddDbContext<RelayDbContext>(options =>
         {
@@ -62,6 +73,7 @@ public static class PersistenceServiceCollectionExtensions
         });
 
         services.AddScoped<IMessageRepository, MessageRepository>();
+        services.AddScoped<IMessageReader, MessageReader>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<OutboxDispatcher>();
 
