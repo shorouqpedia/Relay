@@ -13,12 +13,22 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Relay.Providers.*\*.csproj" />
+
+    <!--
+      Referenced so the decorator-chain tests can compose the real container.
+      Those assert the ordering in ADR 0007, which is invisible at every call
+      site and would otherwise survive being reordered by a refactor.
+    -->
+    <ProjectReference Include="..\..\src\Relay.Infrastructure\Relay.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Refit" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NSubstitute" />

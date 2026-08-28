@@ -34,8 +34,15 @@ public sealed class PostalModule : IProviderModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // AddRefitGeneratedClient, not AddRefitClient.
+        //
+        // Refit 15 builds the client at compile time with a source generator. The
+        // non-generated overload falls back to a reflection-based builder that
+        // ships in a separate package, and without it the failure is a
+        // NotSupportedException at first resolve — so a provider registered that
+        // way builds cleanly and dies on its first delivery.
         services
-            .AddRefitClient<IPostalApi>()
+            .AddRefitGeneratedClient<IPostalApi>()
             .ConfigureHttpClient(static (provider, client) =>
             {
                 PostalOptions options = provider.GetRequiredService<IOptions<PostalOptions>>().Value;

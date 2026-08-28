@@ -63,3 +63,42 @@ The order is load-bearing and invisible at the call site. It lives in one
 registration method with a comment pointing here, and there is a test asserting
 the composed chain's order so a reordering during a refactor fails loudly rather
 than silently changing the rate-limit semantics.
+
+---
+
+## Amendment, recorded during implementation
+
+The "Alternatives considered" section above says the resilience decorator is
+implemented over `Microsoft.Extensions.Http.Resilience`. Building it showed that
+to be the wrong shape, so it is not what was built. The record is amended rather
+than edited, because the original reasoning is part of how the decision was
+reached.
+
+**What changed.** Resilience is now split across two layers rather than one:
+
+- **Inside each provider's typed client**, `HttpClient`'s timeout and (where a
+  provider needs them) HTTP resilience handlers bound a single *physical* call.
+  This is transport-level and belongs with the transport.
+- **The `ResilienceProviderDecorator`**, hand-written, decides whether a *logical*
+  attempt is worth repeating.
+
+**Why.** The retry decision turned out to be domain-shaped, not transport-shaped.
+Only `TransientFailure` may be retried in place: `Rejected` is a settled answer,
+`RateLimited` should fail over rather than wait, and `Timeout` may already have
+sent the message — so retrying it inside one logical attempt would risk a
+duplicate that the attempt history does not record, which is precisely the
+bookkeeping ADR 0008 depends on.
+
+An HTTP resilience pipeline cannot express that rule, because by the time an
+outcome has been classified into `DeliveryResult` there is no `HttpResponseMessage`
+left to write a predicate against — and classification is exactly the thing the
+provider assembly exists to do. Expressing the rule as library predicates over
+raw responses would have pushed provider-specific knowledge back up into shared
+code.
+
+**What it costs.** Backoff arithmetic that a library would have supplied, and the
+jitter strategy is now this codebase's responsibility to get right. That is
+roughly fifteen lines, and it keeps the four-way outcome rule readable in one
+place.
+
+The ordering decision in the original record is unchanged and still holds.

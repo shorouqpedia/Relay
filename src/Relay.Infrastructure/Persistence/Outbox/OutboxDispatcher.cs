@@ -19,7 +19,11 @@ namespace Relay.Infrastructure.Persistence.Outbox;
 /// publishing zero times is not.
 /// </para>
 /// </remarks>
-internal sealed class OutboxDispatcher(
+// Public because a host has to schedule it. The repositories and unit of work
+// stay internal — those are resolved through their interfaces — but this has no
+// interface to hide behind, and inventing one whose only implementation is this
+// class would be indirection for its own sake.
+public sealed class OutboxDispatcher(
     RelayDbContext context,
     IOutboxPublisher publisher,
     TimeProvider clock,

@@ -13,10 +13,11 @@ the other end are unreliable in slow, partial, ambiguous ways, and the design ha
 to be honest about what it does and does not know.
 
 > **Status: in progress.** The domain, the provider contract, the first provider,
-> and the persistence layer are built. 80 unit and contract tests pass; the 14
-> persistence and outbox tests are written but have not been run yet, because
-> they need a Docker engine that is not available on the machine they were
-> written on. Nothing in this README claims they pass. See [Roadmap](#roadmap).
+> persistence, and the delivery pipeline are built. 98 unit and contract tests
+> pass; the 14 persistence and outbox tests are written but have not been run
+> yet, because they need a Docker engine that is not available on the machine
+> they were written on. Nothing in this README claims they pass. See
+> [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -140,9 +141,9 @@ inconvenient, which is not the same thing.
 | Provider contract and its test suite | Done |
 | First provider (`email.postal`) | Done |
 | Persistence: EF Core mapping, migrations, outbox | Done (integration suite unrun — needs Docker) |
-| Delivery pipeline: channels, dispatch, idempotency | Next |
-| Decorator chain: resilience, rate limiting, metrics | |
-| HTTP surface: minimal APIs, ProblemDetails, versioning | |
+| Delivery pipeline: dispatch, reconciliation, recovery loops | Done |
+| Decorator chain: resilience, rate limiting, metrics | Done |
+| HTTP surface: minimal APIs, ProblemDetails, versioning | Next |
 | Remaining providers, incl. the zero-edit demonstration | |
 | Callbacks: HMAC verification, receipts, reconciliation | |
 | Observability: OpenTelemetry, health checks | |

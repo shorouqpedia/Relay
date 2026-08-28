@@ -173,3 +173,65 @@ Listed so the gaps are visible rather than merely absent.
 | DC | Decorator chain composition and ordering | Resilience |
 | IT | End-to-end HTTP through the API | Integration |
 | CH | Chaos: providers that time out, rate-limit, and go silent | Integration |
+
+## RT — Routing
+
+`tests/Relay.Application.UnitTests/Delivery/ProviderRouterTests.cs`
+
+| Id | Scenario | Expected |
+|---|---|---|
+| RT01 | Several providers on one channel | The lowest priority number wins |
+| RT02 | Providers on other channels | Ignored |
+| RT03 | No provider serves the channel | Fails — a configuration fault, not an outage |
+| RT04 | The preferred provider is circuit-broken | The next one is chosen |
+| RT05 | The message already failed on the preferred provider | A different provider is chosen |
+| RT06 | Every provider has been tried | Falls back to one already tried |
+| RT07 | Every provider is unavailable | Fails; the message stays pending |
+| RT08 | An untried provider and a healthier tried one | Untriedness beats priority |
+
+**Why RT05 and RT06 are both here.** They look contradictory and are not. RT05 is
+the rule: a retry that goes back to the provider that just failed spends the retry
+budget on one upstream while a working alternative sits idle. RT06 is what happens
+once there is no alternative left — retrying a possibly-transient failure beats
+refusing to send at all. The order matters: exhausting the alternatives is what
+unlocks the fallback, not preferring it.
+
+## DP — Dispatch
+
+`tests/Relay.Application.UnitTests/Delivery/MessageDispatcherTests.cs`
+
+| Id | Scenario | Expected |
+|---|---|---|
+| DP01 | The provider accepts | The message is Sent, with the provider's id recorded |
+| DP02 | Any dispatch | The claim is committed **before** the provider is called |
+| DP03 | The provider rejects | Failed, terminally |
+| DP04 | Transient failure with budget left | Back to Pending, provider released |
+| DP05 | Any outcome | Recorded against provider health |
+| DP06 | No provider available | Nothing is written and nothing is attempted |
+| DP07 | The message was cancelled after being claimed | The provider is not called |
+
+**DP02 is the one worth reading.** It asserts an ordering, not a value. A process
+that dies during the provider call has to leave a row in `Dispatching` for the
+recovery loop to find. If the claim were committed afterwards, the message would
+still read as `Pending` despite possibly having been sent, and the next worker
+would send it again with nothing recording that it had been.
+
+## DC — Decorator chain
+
+`tests/Relay.Providers.ContractTests/DecoratorChainTests.cs`
+
+| Id | Scenario | Expected |
+|---|---|---|
+| DC01 | Resolving `IMessageProvider` | Yields a decorated instance, never a bare provider |
+| DC02 | The composed chain | Logging → Metrics → RateLimit → Resilience → provider |
+| DC03 | The chain's descriptor | Forwarded unchanged from the real provider |
+
+**Why DC02 exists.** The ordering in ADR 0007 is load-bearing and invisible at
+every call site. Moving the rate limiter below the resilience decorator lets
+retries bypass the quota — so a provider refusing because it is overloaded gets
+hit harder for refusing — and nothing else in the system would notice.
+
+These tests also caught a real defect on first run: `AddRefitClient` resolves
+through a reflection-based builder that Refit 15 no longer ships by default, so
+the provider registered, built cleanly, and threw `NotSupportedException` on its
+first resolve. Nothing before this point exercised the real container.

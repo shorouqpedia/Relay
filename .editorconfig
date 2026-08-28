@@ -133,6 +133,17 @@ dotnet_diagnostic.CA1062.severity = none
 # Nothing here logs at a volume that justifies the indirection.
 dotnet_diagnostic.CA1848.severity = none
 
+# CA1873 is the same trade-off as CA1848 and is answered the same way. It fires
+# on any argument that is not a literal — including a plain property read like
+# `provider.Value` — so satisfying it means either source-generated logging or an
+# IsEnabled guard around every call site. Having declined the first, accepting
+# the second everywhere would be a lot of ceremony for an allocation this system
+# does once per delivery attempt.
+#
+# Guards are still written by hand where the level is normally off, which is
+# where the rule has real value: see the Debug call in MessageDispatcher.
+dotnet_diagnostic.CA1873.severity = none
+
 # CA1716 objects to the type name `Error` because it is a keyword in Visual Basic.
 # This assembly will not be consumed from VB, and `Error` is the name the domain
 # actually uses — renaming it to `DomainError` or `Failure` to satisfy a
