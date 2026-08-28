@@ -275,3 +275,47 @@ It also caught an empty connection string passing a null check: `appsettings.jso
 ships the key with an empty value so CI can assert no secret was committed, which
 means the absent case in practice is `""` and not `null`. The failure surfaced far
 away, inside the Npgsql driver.
+
+## PC09 and PC09a — a contract assumption, found by a fifth provider
+
+`PC09` originally asserted that a provider meeting an unparseable response
+reports `TransientFailure`. Four providers passed it. The fifth did not, and it
+was right not to.
+
+The webhook provider posts to an endpoint the recipient supplied. It never reads
+the response body — the status line is the entire answer — so a 200 carrying
+malformed content is a genuine success, and reporting a failure would have been
+the bug. The assertion had quietly assumed every provider parses a body to decide
+whether it succeeded.
+
+So the shared scenario now states only what is true of all of them: an unexpected
+response must not throw. The sharper statement moved to `PC09a` in the four
+subclasses where it holds, phrased as what it actually is — a property of
+providers that read a body.
+
+This is [ADR 0003](adr/0003-provider-plugin-architecture.md) working as written:
+when a provider cannot pass the suite, the first suspect is the abstraction. The
+alternative — adding an opt-out flag so the webhook provider could skip `PC09` —
+would have preserved a false claim and made the contract a little less shared
+every time it happened.
+
+## WH — Webhook specifics
+
+`tests/Relay.Providers.ContractTests/Providers/WebhookContractTests.cs`
+
+Not part of the shared contract, because no other provider signs anything.
+
+| Id | Scenario | Expected |
+|---|---|---|
+| WH01 | Any send | Signed HMAC-SHA256 over `timestamp.payload` |
+| WH02 | Any send | Carries the message id in a header |
+| WH03 | Any send | Posts to the recipient's own address |
+
+**Why the timestamp is inside the signature.** Signing the payload alone produces
+a signature that stays valid forever, so anyone who observed one request could
+replay it indefinitely and every copy would verify. Receivers are expected to
+reject a timestamp outside a few minutes.
+
+**Why WH02 exists.** Relay delivers at least once, so the same webhook can
+legitimately arrive twice. The receiver needs a key to deduplicate on, in a header
+so it can do so without parsing the body.

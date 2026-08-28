@@ -13,11 +13,16 @@ namespace Relay.Providers.ContractTests.Providers;
 /// Runs the provider contract against Postal.
 /// </summary>
 /// <remarks>
-/// This class adds no test methods. That is the intended shape: a provider proves
-/// it honours the contract by supplying an instance and a misbehaving upstream,
-/// and everything asserted about it comes from <see cref="ProviderContract"/>.
-/// A provider that needed its own version of one of those assertions would be
-/// telling us the contract is not actually shared.
+/// Almost everything asserted here comes from <see cref="ProviderContract"/>: a
+/// provider proves it honours the contract by supplying an instance and a
+/// misbehaving upstream, not by writing its own version of the shared scenarios.
+/// <para>
+/// The one local test sharpens <c>PC09</c>. The shared version only requires that
+/// an unparseable response does not throw, because the webhook provider never
+/// reads a body and a 200 is a genuine success for it. Postal does read one, so
+/// for Postal the stronger statement holds — and it belongs here, where it is
+/// true, rather than in a contract that would then be lying about the others.
+/// </para>
 /// </remarks>
 public sealed class PostalContractTests : ProviderContract, IDisposable
 {
@@ -53,6 +58,22 @@ public sealed class PostalContractTests : ProviderContract, IDisposable
 
     /// <summary>An address the fake upstream refuses outright, whatever else it is doing.</summary>
     private const string BlockedAddress = "suppressed@example.com";
+
+    [Fact]
+    public async Task PC09a_Send_WhenTheBodyCannotBeParsed_ReportsATransientFailure()
+    {
+        Upstream.Behave(UpstreamBehaviour.MalformedResponse);
+
+        DeliveryResult result = await Provider.SendAsync(ValidRequest(), TestContext.Current.CancellationToken);
+
+        // Sharper than PC09, and stated here rather than in the shared contract
+        // because it is only true of providers that read a body to decide whether
+        // they succeeded. Postal does; the webhook provider does not.
+        //
+        // Reporting success on an unreadable body would record a message as sent
+        // on the strength of a response nobody could interpret.
+        result.Outcome.ShouldBe(AttemptOutcome.TransientFailure);
+    }
 
     private static DeliveryRequest Request(string address) => new(
         MessageId.New(),

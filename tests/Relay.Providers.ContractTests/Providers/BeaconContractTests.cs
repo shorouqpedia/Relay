@@ -65,6 +65,22 @@ public sealed class BeaconContractTests : ProviderContract, IDisposable
     /// </remarks>
     protected override DeliveryRequest PermanentlyRejectedRequest() => Request(RetiredToken);
 
+    [Fact]
+    public async Task PC09a_Send_WhenTheBodyCannotBeParsed_ReportsATransientFailure()
+    {
+        Upstream.Behave(UpstreamBehaviour.MalformedResponse);
+
+        DeliveryResult result = await Provider.SendAsync(ValidRequest(), TestContext.Current.CancellationToken);
+
+        // Sharper than PC09, and stated here rather than in the shared contract
+        // because it is only true of providers that read a body to decide whether
+        // they succeeded. Beacon does; the webhook provider does not.
+        //
+        // Reporting success on an unreadable body would record a message as sent
+        // on the strength of a response nobody could interpret.
+        result.Outcome.ShouldBe(AttemptOutcome.TransientFailure);
+    }
+
     private static DeliveryRequest Request(string token) => new(
         MessageId.New(),
         Recipient.Create(ChannelType.Push, token).Value,

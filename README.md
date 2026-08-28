@@ -12,11 +12,11 @@ The interesting problem here is not sending an email. It is that the systems on
 the other end are unreliable in slow, partial, ambiguous ways, and the design has
 to be honest about what it does and does not know.
 
-> **Status: in progress.** The domain, the provider contract, the first
-> provider, persistence, the delivery pipeline, and the HTTP surface are built
-> and tested — 124 tests, 26 of which drive the real host against PostgreSQL in
-> a container. The remaining providers, callbacks, observability, containers,
-> and CI are not built yet. See [Roadmap](#roadmap).
+> **Status: in progress.** The domain, the provider contract, five providers,
+> persistence, the delivery pipeline, and the HTTP surface are built and tested
+> — 179 tests, 26 of which drive the real host against PostgreSQL in a
+> container. Callbacks, observability, containers, and CI are not built yet. See
+> [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -54,38 +54,60 @@ That pair is the argument the whole system rests on.
               │                     │  → resilience → provider
               └──────────┬──────────┘
                          │
-   ┌─────────────┬───────┴───────┬─────────────┬──────────────┐
-   │ email.postal│ email.mailhook│ sms.twinkle │ push.beacon  │  …
-   └─────────────┴───────────────┴─────────────┴──────────────┘
+   ┌─────────────┬───────┴───────┬─────────────┬──────────────┬─────────┐
+   │ email.postal│ email.mailhook│ sms.twinkle │ push.beacon  │ webhook │
+   └─────────────┴───────────────┴─────────────┴──────────────┴─────────┘
      one assembly each, discovered at startup, never named in the host
 ```
 
-### Adding a provider changes no existing file
+### Adding a provider edits no production code
 
 Providers are separate assemblies implementing a contract, registering themselves
 through `IProviderModule`, and referenced by the hosts via a wildcard rather than
 by name. Creating `src/Relay.Providers.<Channel>.<Name>/` is the entire procedure.
 
-This is the claim the project is built to demonstrate, so it is verifiable rather
-than asserted: the last provider was added in its own commit, and `git show` on
-it touches only new files.
+This is the claim the project exists to demonstrate, so it is checkable rather
+than asserted. The fifth provider was added in its own commit; `git show --stat`
+on it shows the only file changed under `src/` is that provider's own. No router,
+no composition root, no host project file.
+
+It is worth being precise about what the same commit *did* touch, because it is
+more interesting than a clean result would have been. Two shared test files
+changed, and one of those changes was the fifth provider proving the contract
+wrong — see below.
 
 ### The provider contract is enforced, not documented
 
 `Relay.Providers.ContractTests` is one abstract suite that every provider runs.
-A provider supplies an instance and a controllable upstream; it adds no test
-methods of its own.
+A provider supplies an instance and a controllable upstream, and adds test
+methods only for behaviour genuinely its own.
 
 Most of the assertions cover the unhappy half of the contract, because that is
 the half that is easy to get wrong and impossible to notice — a provider that
 leaks a vendor exception works perfectly right up until its upstream has an
-outage. The suite was worth its cost immediately: it caught a timeout being
-misclassified as a transient failure in the first provider, which is the
-difference between "this message was not sent" and "this message may have been
-sent", and therefore the difference between a free retry and a possible duplicate.
+outage. Five providers run it, and they are deliberately unalike: one is
+declarative over Refit, one hand-written over `HttpClient`, one answers HTTP 200
+for failures with the real outcome in the body, one reports nothing after
+accepting a message, and one posts to an address the recipient supplied and signs
+the request.
 
-If a provider cannot pass the suite, the conclusion is that the abstraction is
-wrong — not that the interface needs an opt-out flag.
+The suite has paid for itself twice.
+
+It caught a timeout being misclassified as a transient failure in the first
+provider — the difference between "this message was not sent" and "this message
+may have been sent", and therefore between a free retry and a possible duplicate.
+
+Then the fifth provider failed a scenario that four others passed, and was right
+to. `PC09` required an unparseable response to be reported as a transient
+failure, which quietly assumed every provider reads a body to decide whether it
+succeeded. The webhook provider does not — the status line is its entire answer —
+so for it a 200 with a malformed body is a real success. The shared scenario now
+states only what holds for all of them, and the stronger claim moved to the four
+subclasses where it is true.
+
+That is the rule working as written: when a provider cannot pass the suite, the
+first suspect is the abstraction. Adding an opt-out flag instead would have kept
+a false claim and made the contract slightly less shared.
 
 ## Repository layout
 
@@ -143,8 +165,8 @@ inconvenient, which is not the same thing.
 | Delivery pipeline: dispatch, reconciliation, recovery loops | Done |
 | Decorator chain: resilience, rate limiting, metrics | Done |
 | HTTP surface: minimal APIs, ProblemDetails, versioning | Done |
-| Remaining providers, incl. the zero-edit demonstration | Next |
-| Callbacks: HMAC verification, receipts, reconciliation | |
+| Remaining providers, incl. the zero-edit demonstration | Done |
+| Callbacks: HMAC verification, receipts, reconciliation | Next |
 | Observability: OpenTelemetry, health checks | |
 | Containers and one-command startup | |
 | CI: build, test, security scanning, SBOM | |
