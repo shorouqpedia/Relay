@@ -41,6 +41,9 @@ public static class DeliveryServiceCollectionExtensions
         services.AddScoped<IDeliveryGateway>(sp => sp.GetRequiredService<DeliveryGateway>());
         services.AddScoped<IReceiptQuery>(sp => sp.GetRequiredService<DeliveryGateway>());
 
+        services.AddScoped<Relay.Application.Callbacks.ICallbackGateway, Callbacks.CallbackGateway>();
+        services.AddScoped<Relay.Application.Callbacks.ICallbackLog, Callbacks.CallbackLog>();
+
         services.AddScoped<ProviderRouter>();
         services.AddScoped<MessageDispatcher>();
         services.AddScoped<ReceiptReconciler>();
@@ -98,11 +101,10 @@ public static class DeliveryServiceCollectionExtensions
 
     private static IEnumerable<IProviderModule> DiscoverModules()
     {
-        // Provider assemblies are referenced by the host but may not be loaded
-        // yet — the CLR loads lazily, and nothing has touched their types at this
-        // point. Loading them explicitly is what makes the wildcard reference in
-        // the host .csproj actually reach the runtime.
-        LoadReferencedProviderAssemblies();
+        // Provider assemblies may not be loaded yet — the CLR loads lazily, and
+        // nothing has touched their types at this point. Loading them explicitly is
+        // what makes the wildcard reference in the host .csproj reach the runtime.
+        LoadProviderAssemblies();
 
         return AppDomain.CurrentDomain
             .GetAssemblies()
@@ -116,18 +118,47 @@ public static class DeliveryServiceCollectionExtensions
             .OrderBy(static module => module.Descriptor.Id.Value, StringComparer.Ordinal);
     }
 
-    private static void LoadReferencedProviderAssemblies()
+    /// <summary>
+    /// Loads every provider assembly sitting next to the host.
+    /// </summary>
+    /// <remarks>
+    /// The deployment directory, not <c>Assembly.GetEntryAssembly()</c>.
+    /// <para>
+    /// The entry assembly is whatever started the process, which is the host only
+    /// when the host was launched directly. Under a test runner it is the runner;
+    /// under some launchers it is null. Reading its references therefore found no
+    /// providers whenever the host was hosted rather than run — and the failure
+    /// was silent, because discovery finding nothing looks exactly like there
+    /// being nothing to find. The integration suite caught it as a 404 from the
+    /// callback endpoint, several layers away from the cause.
+    /// </para>
+    /// <para>
+    /// Scanning the directory also matches what the design claims: providers are
+    /// assemblies that sit alongside the host, and adding one is adding a file.
+    /// </para>
+    /// </remarks>
+    private static void LoadProviderAssemblies()
     {
-        AssemblyName[] referenced = Assembly.GetEntryAssembly()?.GetReferencedAssemblies() ?? [];
-
-        foreach (AssemblyName name in referenced)
+        foreach (string path in Directory.EnumerateFiles(
+                     AppContext.BaseDirectory,
+                     "Relay.Providers.*.dll"))
         {
-            if (name.Name?.StartsWith("Relay.Providers.", StringComparison.Ordinal) is not true)
+            try
             {
-                continue;
+                // Loading an already-loaded assembly returns the existing instance
+                // rather than a second copy, so this is safe to call repeatedly —
+                // which matters because a test host builds the container more than
+                // once per process.
+                Assembly.LoadFrom(path);
             }
-
-            Assembly.Load(name);
+            catch (Exception exception) when (exception is BadImageFormatException or FileLoadException)
+            {
+                // A file matching the name pattern that is not a loadable managed
+                // assembly — a native dependency, a partial copy from a
+                // half-finished publish. Skipped rather than fatal: one bad file
+                // must not stop the providers that did load, and a provider that
+                // genuinely failed to load shows up as absent in the startup log.
+            }
         }
     }
 

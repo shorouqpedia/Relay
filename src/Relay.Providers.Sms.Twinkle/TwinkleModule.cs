@@ -41,6 +41,10 @@ public sealed class TwinkleModule : IProviderModule
             client.Timeout = options.Timeout;
         });
 
+        // Keyed by provider id so the callback endpoint can resolve the right
+        // verifier from a route segment without knowing which providers exist.
+        services.AddKeyedScoped<ICallbackReceiver, TwinkleCallbackReceiver>(Descriptor.Id.Value);
+
         services.AddScoped<IMessageProvider>(sp => sp.GetRequiredService<TwinkleProvider>());
     }
 }

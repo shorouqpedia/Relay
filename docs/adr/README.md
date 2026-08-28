@@ -39,3 +39,4 @@ that was correct at the time is part of the history.
 | [0010](0010-testcontainers-over-in-memory.md) | Testcontainers over in-memory fakes | Accepted |
 | [0011](0011-pull-based-pipeline.md) | A pull-based delivery pipeline | Accepted |
 | [0012](0012-no-mediator.md) | No mediator | Accepted |
+| [0013](0013-inbound-callback-trust.md) | Trusting an inbound callback | Accepted |

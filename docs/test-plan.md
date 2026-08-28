@@ -319,3 +319,73 @@ reject a timestamp outside a few minutes.
 **Why WH02 exists.** Relay delivers at least once, so the same webhook can
 legitimately arrive twice. The receiver needs a key to deduplicate on, in a header
 so it can do so without parsing the body.
+
+## CS — Callback signatures
+
+`tests/Relay.Providers.ContractTests/CallbackSignatureTests.cs`
+
+Two short functions every verifier depends on. Both are easy to write in a way
+that looks correct, passes the obvious tests, and can be defeated.
+
+| Id | Scenario | Expected |
+|---|---|---|
+| CS01 | A signature over the same payload | Accepted |
+| CS02 | A signature made with a different secret | Rejected |
+| CS03 | A real signature against an altered payload | Rejected |
+| CS04 | Null on either side | Rejected |
+| CS05 | Differences at the start and at the end of a signature | Compared in the same time |
+| CS06 | A recent timestamp | Accepted |
+| CS07 | A timestamp from two hours ago | Rejected |
+| CS08 | A clock slightly ahead, and one far ahead | Accepted, then rejected |
+| CS09 | A timestamp that is absent or unparseable | Rejected |
+
+**CS05 is the one worth reading.** String equality returns as soon as it finds a
+differing character, so how long a rejection takes reveals how many leading
+characters were right — and an attacker who can measure that recovers a valid
+signature one character at a time, turning a 256-bit search into a few hundred
+requests. The bound is deliberately loose, because CI timing is noisy and what
+this can actually detect is the difference between constant time and a comparison
+that walks the string: an order of magnitude, not a few percent.
+
+**CS08 checks both directions.** A provider whose clock runs slightly fast sends
+timestamps in the future, and rejecting those would fail legitimate traffic for a
+reason nobody would think to look for.
+
+## CB — Callback endpoint
+
+`tests/Relay.IntegrationTests/Api/CallbackEndpointTests.cs`
+
+The only public write path in the system, so these are as much security tests as
+functional ones.
+
+| Id | Scenario | Expected |
+|---|---|---|
+| CB01 | A valid signature, no matching message | 204 |
+| CB02 | A delivery receipt for a sent message | 204, message reads `Delivered` |
+| CB03 | A bounce | `Failed`, with the provider's reason |
+| CB04 | The same callback twice | 204 both times |
+| CB05 | A forged signature | 401, message unchanged |
+| CB06 | Signed with the wrong secret | 401 |
+| CB07 | A real signature over an altered body | 401, message unchanged |
+| CB08 | A correctly signed callback from two hours ago | 401, message unchanged |
+| CB09 | No signature headers at all | 401 |
+| CB10 | Correctly signed, unreadable payload | **422**, not 401 |
+| CB11 | A provider not registered here | 404 |
+| CB12 | Any callback, including refused ones | Recorded, with the reason |
+
+**Why CB01 and CB04 expect 204.** The status answers "did you receive this?", not
+"did it do anything?". A provider reading a 4xx treats the receipt as undelivered
+and resends — so returning a conflict for a duplicate causes the retries it
+appears to be reporting.
+
+**Why CB10 is 422 rather than 401.** A correctly signed payload Relay cannot read
+means the provider changed its format. That is a bug to fix, and a blanket 401
+would bury it among the internet background noise any public endpoint attracts.
+
+**What CB01 caught on first run.** Every callback returned 404, because provider
+discovery had been reading `Assembly.GetEntryAssembly().GetReferencedAssemblies()`
+— and under a test runner the entry assembly is the runner, not the host. No
+provider assemblies were ever loaded. The failure was silent by construction:
+discovery finding nothing looks exactly like there being nothing to find, so the
+API had been running with zero providers and every earlier test had passed anyway
+because none of them needed one. Discovery now scans the deployment directory.

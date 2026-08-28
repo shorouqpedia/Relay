@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Relay.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Relay.Infrastructure.Persistence;
 namespace Relay.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(RelayDbContext))]
-    partial class RelayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828225257_CallbackAuditLog")]
+    partial class CallbackAuditLog
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

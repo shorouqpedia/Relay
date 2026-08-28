@@ -219,6 +219,18 @@ public sealed class TwinkleOptions
     [Required]
     public string SenderId { get; init; } = string.Empty;
 
+    /// <summary>
+    /// The secret Twinkle signs its delivery callbacks with.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from the API key. One authenticates Relay to Twinkle on the way out,
+    /// the other authenticates Twinkle to Relay on the way back — sharing a value would
+    /// mean an outbound credential leak also lets an attacker forge receipts.
+    /// </remarks>
+    [Required]
+    [MinLength(32)]
+    public string CallbackSecret { get; init; } = string.Empty;
+
     /// <summary>How long to wait for a response before treating the silence as a timeout.</summary>
     [Range(typeof(TimeSpan), "00:00:01", "00:02:00")]
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);

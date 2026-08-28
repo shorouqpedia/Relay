@@ -13,10 +13,10 @@ the other end are unreliable in slow, partial, ambiguous ways, and the design ha
 to be honest about what it does and does not know.
 
 > **Status: in progress.** The domain, the provider contract, five providers,
-> persistence, the delivery pipeline, and the HTTP surface are built and tested
-> — 179 tests, 26 of which drive the real host against PostgreSQL in a
-> container. Callbacks, observability, containers, and CI are not built yet. See
-> [Roadmap](#roadmap).
+> persistence, the delivery pipeline, the HTTP surface, and inbound callbacks are
+> built and tested — 203 tests, 38 of which drive the real host against
+> PostgreSQL in a container. Observability, containers, and CI are not built yet.
+> See [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -166,8 +166,8 @@ inconvenient, which is not the same thing.
 | Decorator chain: resilience, rate limiting, metrics | Done |
 | HTTP surface: minimal APIs, ProblemDetails, versioning | Done |
 | Remaining providers, incl. the zero-edit demonstration | Done |
-| Callbacks: HMAC verification, receipts, reconciliation | Next |
-| Observability: OpenTelemetry, health checks | |
+| Callbacks: HMAC verification, receipts, reconciliation | Done |
+| Observability: OpenTelemetry, health checks | Next |
 | Containers and one-command startup | |
 | CI: build, test, security scanning, SBOM | |
 

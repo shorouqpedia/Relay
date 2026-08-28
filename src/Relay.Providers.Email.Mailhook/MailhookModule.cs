@@ -40,6 +40,11 @@ public sealed class MailhookModule : IProviderModule
             client.Timeout = options.Timeout;
         });
 
+        // Keyed by provider id, so the callback endpoint can resolve the right
+        // verifier from a route segment without the host knowing which providers
+        // exist.
+        services.AddKeyedScoped<ICallbackReceiver, MailhookCallbackReceiver>(Descriptor.Id.Value);
+
         // Resolved through the typed-client registration above, then handed back
         // as IMessageProvider so the host's decorator chain wraps it. Registering
         // the concrete type against the interface directly would bypass

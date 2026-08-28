@@ -83,6 +83,10 @@ app.MapGroup(string.Empty)
     .WithApiVersionSet(versions)
     .MapMessages();
 
+app.MapGroup(string.Empty)
+    .WithApiVersionSet(versions)
+    .MapCallbacks();
+
 app.MapHealthChecks("/health");
 
 if (app.Environment.IsDevelopment())

@@ -28,6 +28,9 @@ public sealed class RelayDbContext(DbContextOptions<RelayDbContext> options) : D
     /// <summary>Domain events waiting to be published.</summary>
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
+    /// <summary>Every inbound callback, and what became of it.</summary>
+    public DbSet<Callbacks.CallbackRecord> CallbackRecords => Set<Callbacks.CallbackRecord>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

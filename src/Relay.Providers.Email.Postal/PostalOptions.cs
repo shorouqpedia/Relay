@@ -37,6 +37,19 @@ public sealed class PostalOptions
     public string FromAddress { get; init; } = string.Empty;
 
     /// <summary>
+    /// The secret Postal signs its delivery callbacks with.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="ApiKey"/>, and deliberately so: one authenticates
+    /// Relay to Postal on the way out, the other authenticates Postal to Relay on
+    /// the way back. Reusing a single value would mean an outbound credential leak
+    /// also lets an attacker forge delivery receipts.
+    /// </remarks>
+    [Required]
+    [MinLength(32)]
+    public string CallbackSecret { get; init; } = string.Empty;
+
+    /// <summary>
     /// How long to wait for a response before treating the silence as a timeout.
     /// </summary>
     /// <remarks>

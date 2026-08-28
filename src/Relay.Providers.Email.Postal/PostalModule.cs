@@ -58,6 +58,13 @@ public sealed class PostalModule : IProviderModule
                 client.Timeout = options.Timeout;
             });
 
+        // Keyed by provider id, so the callback endpoint can resolve the right
+        // verifier from a route segment without the host knowing which providers
+        // exist. Not decorated: the decorator chain wraps outbound delivery, and
+        // none of what it adds — retries, quotas, latency metrics — means anything
+        // for verifying a signature on something that already arrived.
+        services.AddKeyedScoped<ICallbackReceiver, PostalCallbackReceiver>(Descriptor.Id.Value);
+
         // Registered against the interface, not the concrete type. The host wraps
         // whatever is registered here in the decorator chain, and a consumer that
         // resolved PostalProvider directly would bypass every one of them.

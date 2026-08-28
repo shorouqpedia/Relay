@@ -143,6 +143,7 @@ public sealed class DecoratorChainTests
             settings[$"Providers:{id}:SenderId"] = "Relay";
             settings[$"Providers:{id}:DefaultTitle"] = "Relay";
             settings[$"Providers:{id}:SigningSecret"] = "contract-test-signing-secret-at-least-32-chars";
+            settings[$"Providers:{id}:CallbackSecret"] = "contract-test-callback-secret-at-least-32-chars";
         }
 
         IConfiguration configuration = new ConfigurationBuilder()

@@ -20,6 +20,7 @@ public static class ApplicationServiceCollectionExtensions
     {
         services.AddScoped<SubmitMessageHandler>();
         services.AddScoped<CancelMessageHandler>();
+        services.AddScoped<Callbacks.ProcessCallbackHandler>();
 
         // Scanned rather than listed. A validator that exists but was never
         // registered is worse than one that does not exist: the endpoint accepts
