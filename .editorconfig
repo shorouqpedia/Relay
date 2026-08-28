@@ -168,3 +168,32 @@ dotnet_diagnostic.CA1806.severity = none
 dotnet_diagnostic.CA1305.severity = none
 dotnet_diagnostic.CA1307.severity = none
 dotnet_diagnostic.CA1861.severity = none
+
+# xUnit names a collection-fixture binding type after the collection it defines,
+# so a `*Collection` suffix is exactly what a reader expects. CA1711 exists to
+# stop that suffix implying IEnumerable, which nothing in a test project will
+# conclude from `PostgresCollection`.
+dotnet_diagnostic.CA1711.severity = none
+
+#### Generated code ####
+
+[**/Migrations/**.cs]
+
+# EF Core writes these; nobody edits them by hand. Holding generated output to a
+# hand-written style guide means either editing every new migration to satisfy
+# rules no human chose to break, or letting the build go red on `dotnet ef
+# migrations add` — and the second one teaches people to distrust the build.
+#
+# Correctness analysers still apply. Only style and API-shape rules are off.
+generated_code = true
+dotnet_analyzer_diagnostic.category-Style.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CA1861.severity = none
+
+# xUnit names a collection-fixture binding type after the collection it defines,
+# so a `*Collection` suffix is exactly what a reader expects. CA1711 exists to
+# stop that suffix implying IEnumerable, which nothing in a test project will
+# conclude from `PostgresCollection`.
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CS1591.severity = none

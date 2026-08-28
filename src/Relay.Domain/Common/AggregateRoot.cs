@@ -11,7 +11,7 @@ namespace Relay.Domain.Common;
 /// inside someone else's aggregate.
 /// </remarks>
 /// <typeparam name="TId">The identifier type.</typeparam>
-public abstract class AggregateRoot<TId> : Entity<TId>
+public abstract class AggregateRoot<TId> : Entity<TId>, IHasDomainEvents
     where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = [];

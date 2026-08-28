@@ -19,4 +19,17 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
 
+  <!--
+    The persistence internals are internal because nothing outside this assembly
+    should construct a repository or a unit of work directly — the composition
+    root registers them against their interfaces. The integration suite is the
+    exception: it verifies the behaviour of these types specifically, including
+    the parts (concurrency conflicts, row claiming) that have no interface-level
+    expression. Widening the types to public to make them testable would trade a
+    real encapsulation for a testing convenience.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Relay.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

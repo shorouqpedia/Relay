@@ -94,15 +94,82 @@ match a registered provider, so accepting `Email.Postal` for `email.postal` woul
 make a mistyped routing rule look like it worked. The rule is the same in both
 cases: normalise when two spellings mean one thing, reject when they do not.
 
+## PC — Provider contract
+
+`tests/Relay.Providers.ContractTests/ProviderContract.cs`
+
+One abstract suite, run once per provider assembly. A provider supplies an
+instance and a controllable upstream and adds no test methods of its own.
+
+| Id | Scenario | Expected |
+|---|---|---|
+| PC01 | The descriptor | Names a channel, an id, and a receipt window |
+| PC02 | Upstream accepts | `Accepted`, no failure reason |
+| PC03 | Accepted, and `ReturnsMessageId` declared | A message id comes back |
+| PC04 | Upstream refuses permanently | `Rejected`, not a transient failure |
+| PC05 | Upstream unavailable | `TransientFailure` |
+| PC06 | Upstream rate limits | `RateLimited`, however it expressed it |
+| PC07 | Rate limited, and `ReportsRetryAfter` declared | A retry delay comes back |
+| PC08 | Upstream never responds | `Timeout` — **not** `TransientFailure` |
+| PC09 | Upstream returns an unparseable body | A result, not an exception |
+| PC10 | Caller cancels | `OperationCanceledException` propagates |
+| PC11 | Upstream echoes the API key in an error | The credential is masked |
+| PC12 | Receipt-query capability | Flag and implementation agree, both ways |
+
+**Why PC08 is separate from PC05.** A transient failure asserts the message was
+not sent. A timeout means it may have been. Only the second makes a retry a
+decision to risk a duplicate, and conflating them produces a system that is
+confidently wrong about what it did. This scenario caught exactly that
+misclassification in the first provider.
+
+**Why PC11 exists.** Upstreams echo the submitted request back in error payloads
+routinely, and a provider that copies the message into `FailureReason` has put a
+credential into the log store.
+
+## PR — Persistence
+
+`tests/Relay.IntegrationTests/Persistence/MessagePersistenceTests.cs`
+
+Not tests of the mapping code. Tests of the properties the design delegates to
+the storage engine — which is why none of them could be written against an
+in-memory provider ([ADR 0010](adr/0010-testcontainers-over-in-memory.md)).
+
+| Id | Scenario | Expected |
+|---|---|---|
+| PR01 | A message round-trips | Value objects come back as value objects, still normalised |
+| PR02 | Two messages with one idempotency key | The second is refused by the unique index |
+| PR03 | A retry spelling the key differently | Finds the original |
+| PR04 | Two workers dispatch the same message | The second loses on the concurrency token |
+| PR05 | Several attempts | Persist in sequence, inside the aggregate |
+| PR06 | A receipt arrives with a provider message id | Finds its message |
+| PR07 | Two workers claim concurrently | Disjoint sets, neither blocked |
+| PR08 | A backlog is claimed | Oldest first |
+
+**Why PR04 and PR07 are both needed.** They protect different windows. The row
+lock in PR07 stops two workers taking the same row; the `xmin` token in PR04
+stops a worker that was paused past the point where its lock mattered. Either
+alone leaves a path to a duplicate send.
+
+## OB — Outbox
+
+`tests/Relay.IntegrationTests/Persistence/OutboxTests.cs`
+
+| Id | Scenario | Expected |
+|---|---|---|
+| OB01 | An aggregate is saved | Its events are written in the same transaction |
+| OB02 | The same aggregate is saved twice | The event is written once |
+| OB03 | The dispatcher runs | Pending rows publish and are marked processed |
+| OB04 | Publishing fails | The row stays pending, with the reason recorded |
+| OB05 | One row in a batch fails | The rest still publish |
+| OB06 | Two dispatchers run concurrently | Neither publishes the other's rows |
+
 ## Still to be written
 
 Listed so the gaps are visible rather than merely absent.
 
 | Prefix | Area | Milestone |
 |---|---|---|
-| PC | Provider contract suite — every provider assembly runs it | Provider contract |
 | RT | Routing and provider selection under health and rate limits | Resilience |
 | DC | Decorator chain composition and ordering | Resilience |
-| OB | Outbox: atomic state change plus event, and dispatch | Persistence |
-| IT | End-to-end HTTP against real infrastructure | Integration |
+| IT | End-to-end HTTP through the API | Integration |
 | CH | Chaos: providers that time out, rate-limit, and go silent | Integration |
