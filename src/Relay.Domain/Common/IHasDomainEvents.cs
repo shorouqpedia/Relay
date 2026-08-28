@@ -13,6 +13,24 @@ namespace Relay.Domain.Common;
 /// </remarks>
 public interface IHasDomainEvents
 {
+    /// <summary>
+    /// This aggregate's identity, as a correlation key.
+    /// </summary>
+    /// <remarks>
+    /// Implemented explicitly by each aggregate rather than derived from
+    /// <c>Entity&lt;TId&gt;</c>, because identifier types differ and only the
+    /// aggregate knows how to express its own as a plain <see cref="Guid"/>.
+    /// <para>
+    /// It exists so the outbox can record which aggregate an event came from in a
+    /// column of its own. The alternative — reading it back out of the serialized
+    /// payload — turned out not to work: the payload is <c>jsonb</c>, so a
+    /// substring match on it is not an operation PostgreSQL has, and answering
+    /// "which events for this message are still pending" would have needed either
+    /// JSON containment written by hand or a full scan.
+    /// </para>
+    /// </remarks>
+    Guid AggregateId { get; }
+
     /// <summary>Events raised since the aggregate was loaded.</summary>
     IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
 

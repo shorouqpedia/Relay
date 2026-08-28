@@ -159,6 +159,10 @@ namespace Relay.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid>("AggregateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aggregate_id");
+
                     b.Property<int>("AttemptCount")
                         .HasColumnType("integer")
                         .HasColumnName("attempt_count");
@@ -188,6 +192,9 @@ namespace Relay.Infrastructure.Persistence.Migrations
                         .HasColumnName("type");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AggregateId")
+                        .HasDatabaseName("ix_outbox_messages_aggregate_id");
 
                     b.HasIndex("OccurredAt")
                         .HasDatabaseName("ix_outbox_messages_pending")

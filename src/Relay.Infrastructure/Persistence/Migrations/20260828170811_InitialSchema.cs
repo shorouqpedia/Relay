@@ -41,6 +41,7 @@ namespace Relay.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
+                    aggregate_id = table.Column<Guid>(type: "uuid", nullable: false),
                     type = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
                     payload = table.Column<string>(type: "jsonb", nullable: false),
                     occurred_at = table.Column<DateTimeOffset>(type: "timestamptz", nullable: false),
@@ -112,6 +113,11 @@ namespace Relay.Infrastructure.Persistence.Migrations
                 table: "messages",
                 column: "dispatch_started_at",
                 filter: "status = 'Dispatching'");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_outbox_messages_aggregate_id",
+                table: "outbox_messages",
+                column: "aggregate_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_outbox_messages_pending",

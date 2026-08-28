@@ -28,7 +28,7 @@ public sealed class OutboxTests(PostgresFixture postgres)
 
         await using RelayDbContext read = postgres.CreateContext();
         List<OutboxMessage> rows = await read.OutboxMessages
-            .Where(row => row.Payload.Contains(message.Id.Value.ToString()))
+            .Where(row => row.AggregateId == message.Id.Value)
             .ToListAsync(TestContext.Current.CancellationToken);
 
         // One transaction produced both the message row and the event row. There
@@ -61,7 +61,7 @@ public sealed class OutboxTests(PostgresFixture postgres)
         await using RelayDbContext read = postgres.CreateContext();
         int count = await read.OutboxMessages
             .CountAsync(
-                row => row.Payload.Contains(message.Id.Value.ToString()),
+                row => row.AggregateId == message.Id.Value,
                 TestContext.Current.CancellationToken);
 
         count.ShouldBe(1);
@@ -94,7 +94,7 @@ public sealed class OutboxTests(PostgresFixture postgres)
         await using RelayDbContext read = postgres.CreateContext();
         OutboxMessage row = await read.OutboxMessages
             .FirstAsync(
-                r => r.Payload.Contains(message.Id.Value.ToString()),
+                r => r.AggregateId == message.Id.Value,
                 TestContext.Current.CancellationToken);
 
         row.ProcessedAt.ShouldNotBeNull();
@@ -128,7 +128,7 @@ public sealed class OutboxTests(PostgresFixture postgres)
         await using RelayDbContext read = postgres.CreateContext();
         OutboxMessage row = await read.OutboxMessages
             .FirstAsync(
-                r => r.Payload.Contains(message.Id.Value.ToString()),
+                r => r.AggregateId == message.Id.Value,
                 TestContext.Current.CancellationToken);
 
         // Still pending, with the reason attached. There is no dead-letter state:
@@ -167,10 +167,10 @@ public sealed class OutboxTests(PostgresFixture postgres)
         await using RelayDbContext read = postgres.CreateContext();
 
         OutboxMessage failed = await read.OutboxMessages.FirstAsync(
-            r => r.Payload.Contains(first.Id.Value.ToString()),
+            r => r.AggregateId == first.Id.Value,
             TestContext.Current.CancellationToken);
         OutboxMessage succeeded = await read.OutboxMessages.FirstAsync(
-            r => r.Payload.Contains(second.Id.Value.ToString()),
+            r => r.AggregateId == second.Id.Value,
             TestContext.Current.CancellationToken);
 
         failed.ProcessedAt.ShouldBeNull();

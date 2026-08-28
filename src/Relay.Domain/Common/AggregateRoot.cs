@@ -17,6 +17,16 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IHasDomainEvents
     private readonly List<IDomainEvent> _domainEvents = [];
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Abstract rather than derived from <see cref="Entity{TId}.Id"/>, because
+    /// <c>TId</c> is unconstrained and there is no general way to turn one into a
+    /// <see cref="Guid"/>. Each aggregate says how its own identity is expressed
+    /// as a correlation key, and a new aggregate that forgets to is a compile
+    /// error rather than a silently uncorrelatable outbox row.
+    /// </remarks>
+    public abstract Guid AggregateId { get; }
+
+    /// <inheritdoc />
     protected AggregateRoot(TId id)
         : base(id)
     {

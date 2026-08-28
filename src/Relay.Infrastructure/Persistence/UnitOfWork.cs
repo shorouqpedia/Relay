@@ -62,14 +62,19 @@ internal sealed class UnitOfWork(RelayDbContext context, TimeProvider clock) : I
 
         foreach (IHasDomainEvents aggregate in aggregates)
         {
+            Guid aggregateId = aggregate.AggregateId;
+
             foreach (IDomainEvent domainEvent in aggregate.DrainDomainEvents())
             {
-                context.OutboxMessages.Add(ToOutboxRow(domainEvent, now));
+                context.OutboxMessages.Add(ToOutboxRow(aggregateId, domainEvent, now));
             }
         }
     }
 
-    private static OutboxMessage ToOutboxRow(IDomainEvent domainEvent, DateTimeOffset writtenAt)
+    private static OutboxMessage ToOutboxRow(
+        Guid aggregateId,
+        IDomainEvent domainEvent,
+        DateTimeOffset writtenAt)
     {
         Type type = domainEvent.GetType();
 
@@ -79,6 +84,7 @@ internal sealed class UnitOfWork(RelayDbContext context, TimeProvider clock) : I
         string typeName = $"{type.FullName}, {type.Assembly.GetName().Name}";
 
         return OutboxMessage.For(
+            aggregateId,
             typeName,
             JsonSerializer.Serialize(domainEvent, type, SerializerOptions),
 

@@ -16,16 +16,21 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.HasKey(o => o.Id);
         builder.Property(o => o.Id).HasColumnName("id").ValueGeneratedNever();
 
+        builder.Property(o => o.AggregateId)
+            .HasColumnName("aggregate_id")
+            .IsRequired();
+
         builder.Property(o => o.Type)
             .HasColumnName("type")
             .HasMaxLength(512)
             .IsRequired();
 
-        // jsonb rather than text. The payload is queried during incidents — "which
-        // events for this message are still pending" — and jsonb makes that a
-        // query instead of an export. It also rejects malformed JSON on write,
-        // which turns a serialization bug into a failed insert rather than a row
-        // that fails years later when something tries to read it.
+        // jsonb rather than text, so a malformed payload fails on write instead of
+        // becoming a row that breaks years later when something first reads it.
+        //
+        // Note that jsonb is not searchable the way text is: there is no
+        // `jsonb LIKE jsonb`, so correlating an event back to its aggregate goes
+        // through the aggregate_id column above rather than through this.
         builder.Property(o => o.Payload)
             .HasColumnName("payload")
             .HasColumnType("jsonb")
@@ -45,5 +50,11 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.HasIndex(o => o.OccurredAt)
             .HasDatabaseName("ix_outbox_messages_pending")
             .HasFilter("processed_at IS NULL");
+
+        // The incident query: everything that happened to one message. Not
+        // partial — this one is asked about old rows precisely because they are
+        // old.
+        builder.HasIndex(o => o.AggregateId)
+            .HasDatabaseName("ix_outbox_messages_aggregate_id");
     }
 }

@@ -53,6 +53,13 @@ public sealed class Message : AggregateRoot<MessageId>
         Body = null!;
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Domain code uses <see cref="Entity{TId}.Id"/>, which is typed. This is the untyped form
+    /// the outbox needs, and nothing in the domain should reach for it.
+    /// </remarks>
+    public override Guid AggregateId => Id.Value;
+
     /// <summary>The caller-supplied token that makes submission safe to repeat.</summary>
     public IdempotencyKey IdempotencyKey { get; private init; }
 

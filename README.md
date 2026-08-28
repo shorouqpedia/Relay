@@ -12,12 +12,11 @@ The interesting problem here is not sending an email. It is that the systems on
 the other end are unreliable in slow, partial, ambiguous ways, and the design has
 to be honest about what it does and does not know.
 
-> **Status: in progress.** The domain, the provider contract, the first provider,
-> persistence, and the delivery pipeline are built. 98 unit and contract tests
-> pass; the 14 persistence and outbox tests are written but have not been run
-> yet, because they need a Docker engine that is not available on the machine
-> they were written on. Nothing in this README claims they pass. See
-> [Roadmap](#roadmap).
+> **Status: in progress.** The domain, the provider contract, the first
+> provider, persistence, and the delivery pipeline are built and tested — 112
+> tests, including 14 that run against PostgreSQL in a container. The HTTP
+> surface, the remaining providers, observability, containers, and CI are not
+> built yet. See [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -140,7 +139,7 @@ inconvenient, which is not the same thing.
 | Domain: aggregate, value objects, state machine | Done |
 | Provider contract and its test suite | Done |
 | First provider (`email.postal`) | Done |
-| Persistence: EF Core mapping, migrations, outbox | Done (integration suite unrun — needs Docker) |
+| Persistence: EF Core mapping, migrations, outbox | Done |
 | Delivery pipeline: dispatch, reconciliation, recovery loops | Done |
 | Decorator chain: resilience, rate limiting, metrics | Done |
 | HTTP surface: minimal APIs, ProblemDetails, versioning | Next |

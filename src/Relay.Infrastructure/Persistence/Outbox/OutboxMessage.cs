@@ -22,11 +22,13 @@ public sealed class OutboxMessage
 {
     private OutboxMessage(
         Guid id,
+        Guid aggregateId,
         string type,
         string payload,
         DateTimeOffset occurredAt)
     {
         Id = id;
+        AggregateId = aggregateId;
         Type = type;
         Payload = payload;
         OccurredAt = occurredAt;
@@ -40,6 +42,18 @@ public sealed class OutboxMessage
 
     /// <summary>Identity. Version 7, so inserts append to the index rather than scattering across it.</summary>
     public Guid Id { get; private init; }
+
+    /// <summary>
+    /// The aggregate this event came from.
+    /// </summary>
+    /// <remarks>
+    /// A column rather than something read back out of <see cref="Payload"/>.
+    /// The payload is <c>jsonb</c>, so a substring match on it is not an operation
+    /// PostgreSQL has — the incident question "which events for this message are
+    /// still pending" would otherwise need hand-written JSON containment, or a
+    /// scan. Indexed, so it is neither.
+    /// </remarks>
+    public Guid AggregateId { get; private init; }
 
     /// <summary>
     /// The event's type name, used to deserialize the payload.
@@ -68,8 +82,12 @@ public sealed class OutboxMessage
     public string? LastError { get; private set; }
 
     /// <summary>Records an event for publication.</summary>
-    public static OutboxMessage For(string type, string payload, DateTimeOffset occurredAt) =>
-        new(Guid.CreateVersion7(), type, payload, occurredAt);
+    public static OutboxMessage For(
+        Guid aggregateId,
+        string type,
+        string payload,
+        DateTimeOffset occurredAt) =>
+        new(Guid.CreateVersion7(), aggregateId, type, payload, occurredAt);
 
     /// <summary>Marks the event published.</summary>
     public void MarkProcessed(DateTimeOffset now)

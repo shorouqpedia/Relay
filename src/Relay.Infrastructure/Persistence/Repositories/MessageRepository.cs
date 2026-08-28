@@ -83,8 +83,16 @@ internal sealed class MessageRepository(RelayDbContext context) : IMessageReposi
             return [];
         }
 
+        // Projected to MessageId before the Contains, not compared against
+        // m.Id.Value. MessageId reaches the database through a value converter, so
+        // EF has no translation for reaching *inside* it — `claimed.Contains(m.Id.Value)`
+        // fails at runtime with "the LINQ expression could not be translated",
+        // which is a message that points at the query rather than at the converter
+        // that caused it. Comparing whole converted values is what EF can do.
+        List<MessageId> ids = [.. claimed.Select(id => new MessageId(id))];
+
         List<Message> messages = await context.Messages
-            .Where(m => claimed.Contains(m.Id.Value))
+            .Where(m => ids.Contains(m.Id))
             .Include(m => m.Attempts)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -92,7 +100,7 @@ internal sealed class MessageRepository(RelayDbContext context) : IMessageReposi
         // Restored to the order the lock granted them, which is submission order.
         // The second query's ordering is whatever the index returns, and a backlog
         // draining out of order starves whatever arrived first.
-        return [.. messages.OrderBy(m => claimed.IndexOf(m.Id.Value))];
+        return [.. messages.OrderBy(m => ids.IndexOf(m.Id))];
     }
 
     public async Task<IReadOnlyList<Message>> FindAwaitingReceiptAsync(
