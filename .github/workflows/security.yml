@@ -1,0 +1,143 @@
+# Security scanning, on a separate workflow from the build.
+#
+# Separate because it answers a different question and runs on a different
+# cadence: the build asks "does this change work?", and this asks "is anything we
+# shipped now known to be vulnerable?" — which becomes true without anyone
+# changing anything, when an advisory is published against a package that has
+# been in the graph for months.
+#
+# That is why it also runs on a schedule and not only on a push.
+
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly. An advisory published on Tuesday should not wait for the next
+    # commit to be noticed, and a repository with no commits for a month is
+    # exactly the one where this matters.
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Findings go to the code-scanning tab as SARIF rather than to a build log. A
+  # log line is read once by whoever was watching; an alert is attached to the
+  # line, survives, and appears on the pull request that introduced it.
+  security-events: write
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          # security-and-quality rather than the default security-only. The extra
+          # rules find the dead code and the unreachable branches that are how a
+          # security bug usually looks before anyone calls it one.
+          queries: security-and-quality
+
+      - name: Build for analysis
+        run: dotnet build --configuration Release
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: csharp
+
+  secrets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history, not the default shallow clone.
+          #
+          # A secret removed in a later commit is still in the history and still
+          # extractable, so scanning only the tip answers the wrong question. This
+          # is the scan that finds the credential someone committed and reverted
+          # six months ago, believing that fixed it.
+          fetch-depth: 0
+
+      - name: Scan history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Narrower than the scanner and complementary. gitleaks looks for anything
+      # resembling a credential; this asserts that the specific keys this project
+      # knows are secrets ship empty — which catches a short, unremarkable value
+      # that happens to be a real password.
+      - name: Check configuration convention
+        run: bash build/check-config.sh
+
+  # A software bill of materials, published as a build artifact.
+  #
+  # The reason to have one is the question that arrives the morning after a
+  # widely-reported vulnerability: "are we affected?". Without an SBOM that is an
+  # afternoon of archaeology per service. With one it is a search.
+  sbom:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Generate SBOM
+        run: |
+          dotnet tool install --global CycloneDX
+          dotnet CycloneDX Relay.sln --out ./sbom --json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: ./sbom
+          retention-days: 90
+
+  images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the API image
+        run: docker build -f build/docker/Dockerfile --target api -t relay-api:scan .
+
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: relay-api:scan
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH
+
+          # Reported, not blocking, and this is the one place the "everything
+          # blocks or is not checked" rule in ADR 0016 bends. Base-image
+          # vulnerabilities are fixed by Microsoft publishing a new image, not by
+          # anything a change here can do — and a gate nobody can pass teaches
+          # people to bypass gates.
+          exit-code: "0"
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: container

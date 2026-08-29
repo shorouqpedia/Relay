@@ -96,6 +96,8 @@ public sealed class OutboxDispatcher(
             // picked up by whoever runs next.
             throw;
         }
+        // check-style: allow-broad-catch — one unpublishable row must not stop the
+        // batch, and the set of things a publisher can throw is not enumerable here.
         catch (Exception exception)
         {
             // One of the few genuinely justified broad catches in this codebase,

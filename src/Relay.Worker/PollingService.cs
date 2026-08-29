@@ -85,6 +85,8 @@ internal abstract class PollingService(
         {
             throw;
         }
+        // check-style: allow-broad-catch — the loop must outlive a bad pass, or the
+        // process stays up and silently delivers nothing.
         catch (Exception exception)
         {
             // The loop must outlive a bad pass. An unhandled exception here would

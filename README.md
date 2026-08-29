@@ -12,10 +12,11 @@ The interesting problem here is not sending an email. It is that the systems on
 the other end are unreliable in slow, partial, ambiguous ways, and the design has
 to be honest about what it does and does not know.
 
-> **Status: in progress.** The system runs end to end: `docker compose up`
-> brings up the API, two workers, PostgreSQL, stand-in upstreams, and Jaeger, and
-> a submitted message is delivered, reported on by a signed callback, and marked
-> delivered. 208 tests. CI is the remaining piece. See [Roadmap](#roadmap).
+> **Status: complete enough to read.** `docker compose up` brings up the API,
+> two workers, PostgreSQL, stand-in upstreams, and Jaeger; a submitted message is
+> delivered, reported on by a signed callback, and marked delivered. 208 tests,
+> and CI verifies the claims on this page rather than trusting them. What is left
+> is written down under [What I would do differently](#what-i-would-do-differently).
 
 ## Why this exists
 
@@ -126,6 +127,10 @@ tests/
   Relay.IntegrationTests/        real HTTP against real infrastructure
 tools/
   Relay.FakeProviders/           upstreams that misbehave on request
+build/
+  docker/                        one Dockerfile, four targets
+  check-style.sh                 the rules .editorconfig cannot express
+  check-config.sh                no secrets in committed configuration
 docs/
   adr/                           why, for everything that was a choice
   test-plan.md                   the scenarios test names refer to
@@ -191,6 +196,33 @@ Analyzer rules that are switched off are switched off in `.editorconfig` with a
 written reason next to each. A rule disabled without one is a rule that was
 inconvenient, which is not the same thing.
 
+### CI checks the claims on this page
+
+Every assertion this repository makes about itself is verified in CI, or it is
+not made ([ADR 0016](docs/adr/0016-ci-verifies-the-claims.md)). Prose does not
+fail, so a claim that stops holding decays quietly into a lie — and documentation
+that confidently describes something the code no longer does is worse than none,
+because a reader cannot tell which parts are still true.
+
+- `build/check-style.sh` fails on `#region` and on an unfiltered
+  `catch (Exception)`. Neither is expressible in `.editorconfig`, which is why
+  ADR 0009 previously named a script that did not exist — a claim about
+  enforcement that was itself unenforced.
+- `build/check-config.sh` fails when a committed settings file gives a
+  secret-bearing key a value, or when a connection string carries a password.
+- The integration tests run against a real PostgreSQL, and migrations are applied
+  to a throwaway database so a migration that does not apply fails here rather
+  than at deploy time.
+- `docker compose up` is exercised on every push: a message is submitted, and CI
+  fails unless it reaches `Delivered` — through the worker, the upstream, and a
+  signed callback. If the README's first instruction stops working, the build
+  goes red.
+
+CodeQL, secret scanning over the full history, container image scanning, and SBOM
+generation run in a separate workflow, on a schedule as well as on push — an
+advisory published against a package that has been in the graph for months
+becomes true without anyone changing anything.
+
 ## Roadmap
 
 | Milestone | Status |
@@ -207,7 +239,7 @@ inconvenient, which is not the same thing.
 | Callbacks: HMAC verification, receipts, reconciliation | Done |
 | Observability: OpenTelemetry, health checks | Done |
 | Containers and one-command startup | Done |
-| CI: build, test, security scanning, SBOM | Next |
+| CI: build, test, security scanning, SBOM | Done |
 
 ## What I would do differently
 

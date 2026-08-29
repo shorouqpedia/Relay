@@ -42,3 +42,4 @@ that was correct at the time is part of the history.
 | [0013](0013-inbound-callback-trust.md) | Trusting an inbound callback | Accepted |
 | [0014](0014-tracing-across-the-queue.md) | Tracing across the queue: links, not one long trace | Accepted |
 | [0015](0015-migrations-are-a-deployment-step.md) | Migrations are a deployment step, not a startup step | Accepted |
+| [0016](0016-ci-verifies-the-claims.md) | CI verifies the claims this repository makes about itself | Accepted |
