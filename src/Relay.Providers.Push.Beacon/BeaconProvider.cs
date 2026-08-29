@@ -70,7 +70,7 @@ internal sealed class BeaconProvider(HttpClient client, IOptions<BeaconOptions> 
         try
         {
             response = await client
-                .PostAsJsonAsync("/v2/push", payload, Json, cancellationToken)
+                .PostAsJsonAsync("v2/push", payload, Json, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

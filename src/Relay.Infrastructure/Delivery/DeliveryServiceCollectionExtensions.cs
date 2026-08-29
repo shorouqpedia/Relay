@@ -75,6 +75,7 @@ public static class DeliveryServiceCollectionExtensions
         IConfiguration configuration)
     {
         HashSet<string> seen = new(StringComparer.Ordinal);
+        List<ProviderDescriptor> descriptors = [];
 
         foreach (IProviderModule module in DiscoverModules())
         {
@@ -96,7 +97,13 @@ public static class DeliveryServiceCollectionExtensions
             IConfiguration section = configuration.GetSection($"Providers:{id}");
 
             module.Register(services, section);
+            descriptors.Add(module.Descriptor);
         }
+
+        // Registered as a singleton value, so the router and the health check can
+        // ask what providers exist without instantiating any of them. A descriptor
+        // is data; a provider is a scoped object holding an HttpClient.
+        services.AddSingleton<IReadOnlyList<ProviderDescriptor>>(descriptors);
 
         DecorateProviders(services);
     }

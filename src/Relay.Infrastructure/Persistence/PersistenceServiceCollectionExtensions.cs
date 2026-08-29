@@ -75,7 +75,12 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IMessageReader, MessageReader>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-        services.AddScoped<OutboxDispatcher>();
+
+        // The OutboxDispatcher is deliberately not registered here. Writing outbox
+        // rows is a persistence concern and belongs to the unit of work; publishing
+        // them is the worker's job, and it needs an IOutboxPublisher that only the
+        // worker configures. Registering it for every host meant the API failed to
+        // start on a dependency it never uses.
 
         // TimeProvider rather than DateTimeOffset.UtcNow, so that "the receipt
         // window elapsed" is a testable condition rather than a wall-clock wait.

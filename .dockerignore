@@ -1,0 +1,34 @@
+# Everything, then re-admit what the build needs.
+#
+# An allow-list rather than a deny-list, because the failure modes point opposite
+# ways: a forgotten deny entry ships something into an image — bin/, a local
+# appsettings, a .git directory with credentials in its history — and a forgotten
+# allow entry only fails the build.
+**
+
+!src/
+!tools/
+!Directory.Build.props
+!Directory.Packages.props
+!global.json
+!NuGet.config
+
+# .editorconfig is part of the build, not an editor preference.
+#
+# Analyzer severities live in it, including the suppressions that make this
+# codebase compile under TreatWarningsAsErrors. Leaving it out meant the image
+# built with different rules than the developer machine and failed on
+# suppressions that exist — a "works on my machine" of the most confusing kind,
+# because the code was identical and only the invisible configuration differed.
+!.editorconfig
+
+# Build output from the host. Copying it in makes the image depend on whatever
+# was last built locally, which is how a container works on one machine and not
+# another.
+**/bin/
+**/obj/
+
+# Local configuration and anything holding a secret.
+**/appsettings.*.Local.json
+**/*.user
+**/.env

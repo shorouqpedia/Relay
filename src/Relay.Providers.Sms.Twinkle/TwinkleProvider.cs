@@ -73,7 +73,7 @@ internal sealed class TwinkleProvider(HttpClient client, IOptions<TwinkleOptions
         HttpResponseMessage response;
         try
         {
-            response = await client.PostAsync("/sms/send", content, cancellationToken)
+            response = await client.PostAsync("sms/send", content, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

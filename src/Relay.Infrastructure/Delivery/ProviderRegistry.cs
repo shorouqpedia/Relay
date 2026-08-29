@@ -20,18 +20,38 @@ internal sealed class ProviderRegistry : IProviderRegistry
     private readonly Dictionary<string, ProviderProfile> _byId;
     private readonly Dictionary<ChannelType, ProviderProfile[]> _byChannel;
 
+    /// <summary>
+    /// Builds the registry from the descriptors discovered at startup.
+    /// </summary>
+    /// <remarks>
+    /// Takes descriptors, not <c>IMessageProvider</c> instances. Providers are
+    /// scoped — they hold a typed <c>HttpClient</c> — and a singleton that
+    /// enumerated them would capture instances from whichever scope happened to
+    /// build it first and hold them for the life of the process.
+    /// <para>
+    /// That is a captive dependency, and it is invisible until something goes
+    /// wrong with it: the pooled handler never rotates, DNS changes are never
+    /// picked up, and the failure looks like a provider being unreachable long
+    /// after it came back. Scope validation catches it at startup, which is why
+    /// the hosts run with it on.
+    /// </para>
+    /// <para>
+    /// A descriptor is a value: an id, a channel, a capability set. Nothing about
+    /// it is scoped, so the registry can be the singleton it should be.
+    /// </para>
+    /// </remarks>
     public ProviderRegistry(
-        IEnumerable<IMessageProvider> providers,
+        IReadOnlyList<ProviderDescriptor> descriptors,
         IOptions<RoutingOptions> routing)
     {
         RoutingOptions options = routing.Value;
 
-        ProviderProfile[] profiles = [.. providers
-            .Select(p => new ProviderProfile(
-                p.Descriptor.Id,
-                p.Descriptor.Channel,
-                p.Descriptor.ExpectedReceiptWindow,
-                options.PriorityFor(p.Descriptor.Id)))];
+        ProviderProfile[] profiles = [.. descriptors
+            .Select(descriptor => new ProviderProfile(
+                descriptor.Id,
+                descriptor.Channel,
+                descriptor.ExpectedReceiptWindow,
+                options.PriorityFor(descriptor.Id)))];
 
         _byId = profiles.ToDictionary(p => p.Id.Value, StringComparer.Ordinal);
 

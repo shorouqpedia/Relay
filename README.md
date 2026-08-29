@@ -12,10 +12,10 @@ The interesting problem here is not sending an email. It is that the systems on
 the other end are unreliable in slow, partial, ambiguous ways, and the design has
 to be honest about what it does and does not know.
 
-> **Status: in progress.** Everything from the domain through the delivery
-> pipeline, the HTTP surface, inbound callbacks, and observability is built and
-> tested — 208 tests, 38 of which drive the real host against PostgreSQL in a
-> container. Containers and CI are not built yet. See [Roadmap](#roadmap).
+> **Status: in progress.** The system runs end to end: `docker compose up`
+> brings up the API, two workers, PostgreSQL, stand-in upstreams, and Jaeger, and
+> a submitted message is delivered, reported on by a signed callback, and marked
+> delivered. 208 tests. CI is the remaining piece. See [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -134,12 +134,51 @@ docs/
 ## Running it
 
 ```bash
+docker compose up --build
+```
+
+That is the whole thing: PostgreSQL, the API, two workers, the stand-in
+upstreams, and Jaeger. No accounts, no API keys, nothing leaves the machine.
+
+- API — http://localhost:5080 (`/scalar` for the OpenAPI reference)
+- Traces — http://localhost:16686
+- Provider controls — http://localhost:5099
+
+The workers run as **two replicas** deliberately. Row-level claiming and the
+concurrency token exist for exactly that configuration, so running one would
+leave the parts of the design that matter most unexercised.
+
+### Watching it fail
+
+A stack where every provider always works demonstrates nothing. The stand-in
+upstreams can be told to misbehave:
+
+```bash
+curl -X POST http://localhost:5099/_control/postal/behaviour -H "Content-Type: application/json" -d '{"behaviour":"server_error"}'
+```
+
+Submit a message after that and the delivery history shows the first attempt
+failing on `email.postal` and the second succeeding on `email.mailhook` — routing
+excluding a provider this message has already failed on.
+
+`"behaviour":"silent"` is the interesting one: the upstream accepts messages and
+then never reports anything. The message sits in `Sent` until its provider's
+receipt window elapses and the sweeper abandons it, which is the failure mode that
+produces no event to react to.
+
+```bash
+curl -X POST http://localhost:5080/api/v1/messages -H "Content-Type: application/json" -H "Idempotency-Key: demo-0001" -d '{"channel":"Email","recipient":"someone.com","body":"Hello.","subject":"Relay"}'
+```
+
+### Tests
+
+```bash
 dotnet test
 ```
 
 Unit and contract tests need nothing but the SDK. Integration tests need Docker —
-they start PostgreSQL, Redis, and a broker as containers rather than expecting a
-pre-provisioned server, so a fresh clone can run them
+they start PostgreSQL as a container rather than expecting a pre-provisioned
+server, so a fresh clone can run them
 ([ADR 0010](docs/adr/0010-testcontainers-over-in-memory.md)).
 
 ## Build gates
@@ -167,8 +206,8 @@ inconvenient, which is not the same thing.
 | Remaining providers, incl. the zero-edit demonstration | Done |
 | Callbacks: HMAC verification, receipts, reconciliation | Done |
 | Observability: OpenTelemetry, health checks | Done |
-| Containers and one-command startup | Next |
-| CI: build, test, security scanning, SBOM | |
+| Containers and one-command startup | Done |
+| CI: build, test, security scanning, SBOM | Next |
 
 ## What I would do differently
 

@@ -21,13 +21,16 @@ namespace Relay.Infrastructure.Callbacks;
 /// </remarks>
 internal sealed class CallbackGateway(
     IServiceProvider services,
-    IEnumerable<IMessageProvider> providers) : ICallbackGateway
+    IReadOnlyList<ProviderDescriptor> descriptors) : ICallbackGateway
 {
+    // Descriptors, not provider instances. Enumerating IMessageProvider here
+    // would construct every provider and its typed HttpClient on every inbound
+    // callback, to read a capability flag off each one.
     private readonly HashSet<string> _receiving =
     [
-        .. providers
-            .Where(p => p.Descriptor.Supports(ProviderCapabilities.PushesDeliveryReceipts))
-            .Select(p => p.Descriptor.Id.Value),
+        .. descriptors
+            .Where(d => d.Supports(ProviderCapabilities.PushesDeliveryReceipts))
+            .Select(d => d.Id.Value),
     ];
 
     public bool CanReceive(ProviderId provider) => _receiving.Contains(provider.Value);

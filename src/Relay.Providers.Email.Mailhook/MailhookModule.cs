@@ -35,7 +35,17 @@ public sealed class MailhookModule : IProviderModule
         {
             MailhookOptions options = provider.GetRequiredService<IOptions<MailhookOptions>>().Value;
 
-            client.BaseAddress = new Uri(options.BaseUrl);
+            // The trailing slash is load-bearing.
+            //
+            // HttpClient resolves a relative request URI against BaseAddress by URI
+            // rules, which replace the last path segment. So a base of
+            // "https://host/vendor" with a request of "send" produces
+            // "https://host/send" — the vendor prefix silently disappears, and the
+            // symptom is a 404 that looks like the endpoint moved.
+            //
+            // Normalised here rather than trusted to configuration, because a
+            // missing slash in a settings file is not something review catches.
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
             client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
             client.Timeout = options.Timeout;
         });

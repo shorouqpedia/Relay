@@ -1,0 +1,155 @@
+# The whole system, offline, with one command.
+#
+#   docker compose up --build
+#
+# No accounts, no API keys, no network egress. The providers are stand-ins that
+# can be told to fail on demand — see tools/Relay.FakeProviders — because a stack
+# where every upstream always works demonstrates nothing about a system built to
+# survive upstreams that do not.
+
+name: relay
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: relay
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: relay
+    ports:
+      # Exposed so a developer can inspect the database while it runs. The
+      # password is in this file on purpose: it is a local development database
+      # with no data worth protecting, and pretending otherwise by loading it
+      # from a .env teaches the wrong lesson about where secrets live.
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relay -d relay"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      # /var/lib/postgresql, not /var/lib/postgresql/data.
+      #
+      # PostgreSQL 18 moved the data directory into a versioned subdirectory so
+      # that `pg_upgrade --link` can see both versions inside one mount. Mounting
+      # the old path against an 18 image makes the container refuse to start with
+      # a message about pg_upgrade that reads like a corrupted volume.
+      - postgres-data:/var/lib/postgresql
+
+  # Applies the schema, then exits. Everything that touches the database waits
+  # for it to complete successfully rather than merely to start (ADR 0015).
+  migrate:
+    build:
+      context: .
+      dockerfile: build/docker/Dockerfile
+      target: migrate
+    command:
+      - --connection
+      - Host=postgres;Database=relay;Username=relay;Password=relay
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # The stand-in upstreams. Started before the worker so the first dispatch has
+  # somewhere to go, though nothing breaks if it is not — a provider that is down
+  # is a case the system handles.
+  fake-providers:
+    build:
+      context: .
+      dockerfile: build/docker/Dockerfile
+      target: fakes
+    environment:
+      # Where to send delivery receipts back to. This is what makes the callback
+      # path — signature, timestamp, verification, reconciliation — run for real
+      # in a stack with no internet access.
+      Relay__CallbackBaseUrl: http://api:8080
+      Upstreams__postal__CallbackSecret: &callback-secret relay-local-development-callback-secret
+      Upstreams__mailhook__CallbackSecret: *callback-secret
+      Upstreams__twinkle__CallbackSecret: *callback-secret
+    ports:
+      - "5099:8080"
+
+  api:
+    build:
+      context: .
+      dockerfile: build/docker/Dockerfile
+      target: api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Relay: Host=postgres;Database=relay;Username=relay;Password=relay
+      OpenTelemetry__Endpoint: http://jaeger:4317
+      <<: &provider-config
+        Providers__email.postal__BaseUrl: http://fake-providers:8080/postal
+        Providers__email.postal__ApiKey: local-development-key
+        Providers__email.postal__FromAddress: relay@localhost
+        Providers__email.postal__CallbackSecret: *callback-secret
+
+        Providers__email.mailhook__BaseUrl: http://fake-providers:8080/mailhook
+        Providers__email.mailhook__ApiKey: local-development-key
+        Providers__email.mailhook__FromAddress: relay@localhost
+        Providers__email.mailhook__CallbackSecret: *callback-secret
+
+        Providers__sms.twinkle__BaseUrl: http://fake-providers:8080/twinkle
+        Providers__sms.twinkle__AccountId: local-development-account
+        Providers__sms.twinkle__ApiKey: local-development-key
+        Providers__sms.twinkle__SenderId: Relay
+        Providers__sms.twinkle__CallbackSecret: *callback-secret
+
+        Providers__push.beacon__BaseUrl: http://fake-providers:8080/beacon
+        Providers__push.beacon__ApiKey: local-development-key
+        Providers__push.beacon__DefaultTitle: Relay
+
+        Providers__webhook__SigningSecret: relay-local-development-signing-secret
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      fake-providers:
+        condition: service_started
+    ports:
+      - "5080:8080"
+    healthcheck:
+      # Liveness, not readiness. A health check that fails because the database
+      # is briefly unavailable would have Compose restart a process that is
+      # working fine.
+      test: ["CMD", "dotnet", "/app/Relay.Api.dll", "--healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: build/docker/Dockerfile
+      target: worker
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Relay: Host=postgres;Database=relay;Username=relay;Password=relay
+      OpenTelemetry__Endpoint: http://jaeger:4317
+      <<: *provider-config
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      fake-providers:
+        condition: service_started
+
+    # Two replicas, deliberately. It is the configuration the row-level claim and
+    # the concurrency token exist for, so running one would leave the parts of the
+    # design that matter most unexercised. `docker compose logs worker` shows both
+    # draining the same table without either duplicating or blocking.
+    deploy:
+      replicas: 2
+
+  # Traces, so the link between a submission and the dispatch that followed it
+  # hours later is something to look at rather than something to describe.
+  # http://localhost:16686
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+
+volumes:
+  postgres-data:

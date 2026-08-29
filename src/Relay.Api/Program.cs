@@ -10,6 +10,17 @@ using Relay.Infrastructure.Persistence;
 using Scalar.AspNetCore;
 using Serilog;
 
+// The container health check runs this same executable with --healthcheck.
+//
+// A chiseled image has no shell, no curl, and no wget — which is the point of
+// using one — so there is nothing for a HEALTHCHECK to invoke except the
+// application itself. This is the documented way to health-check a distroless
+// container, and it costs one branch before the host is built.
+if (args.Contains("--healthcheck", StringComparer.Ordinal))
+{
+    return await HealthProbe.RunAsync().ConfigureAwait(false);
+}
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Serilog reads its own configuration, so changing a log level or adding a sink
@@ -115,3 +126,5 @@ if (app.Environment.IsDevelopment())
 }
 
 await app.RunAsync().ConfigureAwait(false);
+
+return 0;

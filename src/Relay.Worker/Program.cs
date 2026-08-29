@@ -34,6 +34,7 @@ builder.Services
 // left missing, so the outbox loop runs end to end — rows are claimed, marked
 // processed, and the claim-and-mark path is exercised — instead of failing at
 // resolve and hiding whether any of it works.
+builder.Services.AddScoped<OutboxDispatcher>();
 builder.Services.AddSingleton<IOutboxPublisher, LoggingOutboxPublisher>();
 
 builder.Services.AddHostedService<DispatchLoop>();

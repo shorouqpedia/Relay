@@ -14,4 +14,14 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!--
+    References the provider contract only for CallbackSignature, so the fakes sign
+    receipts exactly the way the real providers verify them. Signing them
+    independently would have meant two implementations that could drift, and the
+    stack would then prove nothing about the verifier.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Relay.Providers.Abstractions\Relay.Providers.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

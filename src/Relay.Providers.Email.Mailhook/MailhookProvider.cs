@@ -61,7 +61,7 @@ internal sealed class MailhookProvider(HttpClient client, IOptions<MailhookOptio
         try
         {
             response = await client
-                .PostAsJsonAsync("/messages/send", payload, Json, cancellationToken)
+                .PostAsJsonAsync("messages/send", payload, Json, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -92,7 +92,7 @@ internal sealed class MailhookProvider(HttpClient client, IOptions<MailhookOptio
         try
         {
             response = await client
-                .GetAsync($"/messages/{Uri.EscapeDataString(providerMessageId)}", cancellationToken)
+                .GetAsync($"messages/{Uri.EscapeDataString(providerMessageId)}", cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
