@@ -31,7 +31,6 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Refit" />
     <PackageReference Include="Shouldly" />
-    <PackageReference Include="NSubstitute" />
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
   </ItemGroup>
 

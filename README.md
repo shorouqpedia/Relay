@@ -25,10 +25,36 @@ distributed system that only show up under failure. Every design decision that
 was not obvious is written down in [`docs/adr/`](docs/adr/) — including the ones
 that went against my own prior habits, and why.
 
-If you only read one thing, read
-[ADR 0008](docs/adr/0008-at-least-once-and-idempotency.md) on at-least-once
-delivery, and then the `DR` scenarios in [`docs/test-plan.md`](docs/test-plan.md).
-That pair is the argument the whole system rests on.
+### If you are reviewing this, read these four things
+
+In order. They take about fifteen minutes and cover the parts worth judging.
+
+1. **[ADR 0008 — at-least-once delivery](docs/adr/0008-at-least-once-and-idempotency.md)**,
+   then the `DR` scenarios in [`docs/test-plan.md`](docs/test-plan.md). This pair
+   is the argument the whole system rests on, and the tests are where it becomes
+   concrete: a duplicate receipt succeeds, and a true receipt arriving after the
+   sweeper gave up is still refused.
+
+2. **[`Message.cs`](src/Relay.Domain/Messaging/Message.cs)** — the aggregate.
+   Every state change is a named method that checks the transition first, so an
+   invalid state is not guarded against at call sites; there is no API through
+   which it can be reached.
+
+3. **[`ProviderContract.cs`](tests/Relay.Providers.ContractTests/ProviderContract.cs)** —
+   one suite, five deliberately unalike providers. Most of it is about the
+   unhappy half of the contract, which is the half that is easy to get wrong and
+   impossible to notice.
+
+4. **[ADR 0011 — a pull-based pipeline](docs/adr/0011-pull-based-pipeline.md)**.
+   The two failures that matter most here are defined by absence — a worker that
+   died mid-dispatch, a provider that went silent — and neither produces an event
+   to react to.
+
+The ADRs record what was rejected and why, including several decisions that went
+against my own habits. [ADR 0007](docs/adr/0007-decorator-chain-ordering.md)
+carries an amendment written when building it proved the original choice wrong,
+and [ADR 0012](docs/adr/0012-no-mediator.md) explains why a pattern I use in
+every other service is absent from this one.
 
 ## Design in one screen
 
@@ -223,7 +249,93 @@ generation run in a separate workflow, on a schedule as well as on push — an
 advisory published against a package that has been in the graph for months
 becomes true without anyone changing anything.
 
+## What is not here
+
+Stated plainly, because a reader should not have to discover a gap by looking for
+something and failing to find it.
+
+- **No authentication on the API.** Submission is open. Real deployment needs a
+  scheme, and the shape of it — per-tenant keys, quotas, and which messages a
+  caller may read back — would change the domain, not just the edges.
+- **No broker.** The outbox exists, is transactional, and is dispatched by a
+  loop; the publisher writes to the log. Swapping it is one registration line,
+  which is the point of the interface, but nothing has proven that.
+- **No multi-tenancy.** One set of provider credentials, one routing policy.
+- **No callback secret rotation.** Rotating one breaks that provider's callbacks
+  until both sides are updated. Accepting either of two secrets during a rotation
+  is the standard answer and is recorded as a known gap in ADR 0013 rather than
+  quietly omitted.
+- **One database user.** It holds DDL rights because the compose setup shares a
+  credential between the migration bundle and the application. Splitting them is
+  the natural follow-on to ADR 0015 and is not done.
+- **No load testing.** Nothing here has met contention beyond two workers and a
+  handful of messages, so every claim about throughput is a claim about design
+  rather than measurement — and this README makes none.
+
+## What I would do differently
+
+Written after the fact, which is the only time it is worth anything.
+
+**I would have tested that provider discovery works, at milestone two.** The
+worst bug in this project was live for three milestones: discovery read
+`Assembly.GetEntryAssembly().GetReferencedAssemblies()`, which under a test
+runner is the runner — so the API ran with zero providers and every test passed
+anyway, because none of them needed one. It was silent by construction, since
+"discovery found nothing" is indistinguishable from "there is nothing to find".
+
+The lesson generalises past this bug: **a mechanism whose failure mode is
+emptiness needs a test that something was found.** I had tests for what each
+provider does and none for whether any provider exists.
+
+**I would have started the compose stack much earlier.** Standing it up at
+milestone ten found four defects in an afternoon — a captive dependency, a
+misregistered service, three providers building URLs that silently dropped their
+path prefix, and an `.editorconfig` missing from the image so the container built
+with different analyzer rules than my machine. None of them were reachable from a
+unit test, and all of them had been sitting there for weeks. Containers were the
+last milestone because they were the biggest gap in my experience; that was
+exactly the wrong reason to defer them.
+
+**I would not have written `PC09` the way I did.** The contract asserted that an
+unparseable response must be reported as a transient failure, which quietly
+assumed every provider reads a body to decide whether it succeeded. Four
+providers passed. The fifth was right to fail. The assumption was invisible until
+something broke it, and the fix — narrowing the shared claim and moving the
+sharper one to where it is true — is what the suite should have said from the
+start.
+
+**The zero-edit claim needed qualifying, and I would state it correctly first.**
+Adding a provider edits no production code, which is the useful and checkable
+version. My original phrasing was "changes no existing file", and adding the
+fifth provider changed two shared test files — one because a generated
+configuration needed a new key, one because the contract was wrong. Overstating
+it made a true and interesting property sound like a claim that had failed.
+
+**I would use fewer packages and add them later.** Seven package references were
+declared and never used — Redis, HybridCache, feature management, a resilience
+library, a mocking library, two Testcontainers modules. They came from planning
+what the project would need rather than from needing them, and each one is audit
+noise, attack surface, and a false signal about what the system does. One of them
+had a comment explaining a decision that a later ADR amendment had already
+reversed.
+
+**The comment density is still higher than it should be.** The intent was to move
+architectural reasoning into `docs/adr/` and leave short comments explaining
+mechanics — and the ADRs did absorb most of it. But several files still carry
+three-paragraph remarks where two sentences and a link would do. The habit is
+useful in code someone inherits and reads as noise in code someone is evaluating,
+and I have not fully recalibrated.
+
+**Some of what I built is more machinery than this domain needs.** The rich
+aggregate earns its place — the lifecycle has real invariants. The decorator
+chain earns its place. But four value objects, an outbox, and a
+sixteen-project solution for a service with one aggregate and five endpoints is
+a demonstration first and a proportionate design second. In a product I would
+have started smaller and let the seams appear.
+
 ## Roadmap
+
+Everything planned is built.
 
 | Milestone | Status |
 |---|---|
@@ -240,8 +352,3 @@ becomes true without anyone changing anything.
 | Observability: OpenTelemetry, health checks | Done |
 | Containers and one-command startup | Done |
 | CI: build, test, security scanning, SBOM | Done |
-
-## What I would do differently
-
-To be written once there is enough built to be honest about. A section that
-appears before the mistakes do is a marketing section.

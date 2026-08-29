@@ -9,7 +9,6 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Shouldly" />
-    <PackageReference Include="NSubstitute" />
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
   </ItemGroup>
 
@@ -24,8 +23,6 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Testcontainers.PostgreSql" />
-    <PackageReference Include="Testcontainers.Redis" />
-    <PackageReference Include="Testcontainers.RabbitMq" />
   </ItemGroup>
 
 </Project>

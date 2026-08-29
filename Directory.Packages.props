@@ -39,18 +39,19 @@
   </ItemGroup>
 
   <ItemGroup Label="Caching and state">
-    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.9.0" />
-    <PackageVersion Include="StackExchange.Redis" Version="3.1.31" />
   </ItemGroup>
 
-  <ItemGroup Label="Resilience and integration">
+  <ItemGroup Label="Integration">
     <!--
-      Microsoft.Extensions.Http.Resilience, not Polly directly. The resilience
-      decorator (ADR 0007) is written against this abstraction so that the
-      pipeline is configurable per provider without each provider assembly
-      taking a dependency on a resilience library of its own.
+      No resilience library. ADR 0007 specified one and its amendment records why
+      the decorator is hand-written instead: the retry predicate turned out to be
+      domain-shaped, and by the time an outcome is a DeliveryResult there is no
+      HttpResponseMessage left for a library predicate to inspect.
+
+      The package reference outlived that decision by several milestones, which is
+      what an unused dependency looks like — audit noise, attack surface, and a
+      false signal about what the system does.
     -->
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.9.0" />
     <PackageVersion Include="Refit" Version="15.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="15.2.0" />
   </ItemGroup>
@@ -58,7 +59,6 @@
   <ItemGroup Label="Application">
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
-    <PackageVersion Include="Microsoft.FeatureManagement" Version="4.6.0" />
   </ItemGroup>
 
   <ItemGroup Label="API surface">
@@ -84,7 +84,6 @@
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.9.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-    <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
@@ -93,8 +92,6 @@
 
   <ItemGroup Label="Testcontainers">
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
-    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.14.0" />
-    <PackageVersion Include="Testcontainers.Redis" Version="4.14.0" />
   </ItemGroup>
 
 </Project>
