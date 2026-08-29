@@ -12,11 +12,10 @@ The interesting problem here is not sending an email. It is that the systems on
 the other end are unreliable in slow, partial, ambiguous ways, and the design has
 to be honest about what it does and does not know.
 
-> **Status: in progress.** The domain, the provider contract, five providers,
-> persistence, the delivery pipeline, the HTTP surface, and inbound callbacks are
-> built and tested — 203 tests, 38 of which drive the real host against
-> PostgreSQL in a container. Observability, containers, and CI are not built yet.
-> See [Roadmap](#roadmap).
+> **Status: in progress.** Everything from the domain through the delivery
+> pipeline, the HTTP surface, inbound callbacks, and observability is built and
+> tested — 208 tests, 38 of which drive the real host against PostgreSQL in a
+> container. Containers and CI are not built yet. See [Roadmap](#roadmap).
 
 ## Why this exists
 
@@ -167,8 +166,8 @@ inconvenient, which is not the same thing.
 | HTTP surface: minimal APIs, ProblemDetails, versioning | Done |
 | Remaining providers, incl. the zero-edit demonstration | Done |
 | Callbacks: HMAC verification, receipts, reconciliation | Done |
-| Observability: OpenTelemetry, health checks | Next |
-| Containers and one-command startup | |
+| Observability: OpenTelemetry, health checks | Done |
+| Containers and one-command startup | Next |
 | CI: build, test, security scanning, SBOM | |
 
 ## What I would do differently

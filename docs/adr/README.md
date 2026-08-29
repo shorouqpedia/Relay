@@ -40,3 +40,4 @@ that was correct at the time is part of the history.
 | [0011](0011-pull-based-pipeline.md) | A pull-based delivery pipeline | Accepted |
 | [0012](0012-no-mediator.md) | No mediator | Accepted |
 | [0013](0013-inbound-callback-trust.md) | Trusting an inbound callback | Accepted |
+| [0014](0014-tracing-across-the-queue.md) | Tracing across the queue: links, not one long trace | Accepted |

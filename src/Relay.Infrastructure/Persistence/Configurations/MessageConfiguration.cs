@@ -33,6 +33,7 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         ConfigureBody(builder);
         ConfigureLifecycle(builder);
         ConfigureAttempts(builder);
+        ConfigureTracing(builder);
         ConfigureConcurrency(builder);
 
         // Domain events live in memory between a transition and the commit that
@@ -177,6 +178,24 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
             .FindNavigation(nameof(Message.Attempts))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
+
+    /// <summary>
+    /// Maps the trace context recorded when the message was submitted.
+    /// </summary>
+    /// <remarks>
+    /// A shadow property: the column exists, the aggregate does not know about it.
+    /// Distributed tracing is not something a message has an opinion on, and
+    /// putting it on the type would put it in every test and every projection
+    /// (ADR 0014).
+    /// <para>
+    /// Nullable, because a message submitted with no ambient trace — from a job,
+    /// or before this existed — is still a perfectly good message.
+    /// </para>
+    /// </remarks>
+    private static void ConfigureTracing(EntityTypeBuilder<Message> builder) =>
+        builder.Property<string?>(Repositories.MessageRepository.TraceParentProperty)
+            .HasColumnName("submission_trace_parent")
+            .HasMaxLength(64);
 
     private static void ConfigureConcurrency(EntityTypeBuilder<Message> builder)
     {

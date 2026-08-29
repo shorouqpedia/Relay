@@ -49,6 +49,8 @@ public static class DeliveryServiceCollectionExtensions
         services.AddScoped<ReceiptReconciler>();
         services.AddScoped<StuckDispatchRecovery>();
 
+        services.AddScoped<Observability.ProviderHealthCheck>();
+
         AddDiscoveredProviders(services, configuration);
 
         return services;

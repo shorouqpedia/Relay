@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Relay.Domain.Messaging;
 
 namespace Relay.Infrastructure.Persistence.Repositories;
@@ -51,7 +53,7 @@ internal sealed class MessageRepository(RelayDbContext context) : IMessageReposi
     /// is paused long enough for its lock to be irrelevant.
     /// </para>
     /// </remarks>
-    public async Task<IReadOnlyList<Message>> ClaimPendingAsync(
+    public async Task<IReadOnlyList<ClaimedMessage>> ClaimPendingAsync(
         int batchSize,
         CancellationToken cancellationToken)
     {
@@ -100,8 +102,24 @@ internal sealed class MessageRepository(RelayDbContext context) : IMessageReposi
         // Restored to the order the lock granted them, which is submission order.
         // The second query's ordering is whatever the index returns, and a backlog
         // draining out of order starves whatever arrived first.
-        return [.. messages.OrderBy(m => ids.IndexOf(m.Id))];
+        return
+        [
+            .. messages
+                .OrderBy(m => ids.IndexOf(m.Id))
+                .Select(m => new ClaimedMessage(m, TraceParentOf(m))),
+        ];
     }
+
+    /// <summary>
+    /// Reads the trace context recorded when the message was submitted.
+    /// </summary>
+    /// <remarks>
+    /// A shadow property, so the aggregate never sees it. Read from the change
+    /// tracker rather than re-queried — the entity is already loaded and tracked,
+    /// so the value is in memory.
+    /// </remarks>
+    private string? TraceParentOf(Message message) =>
+        context.Entry(message).Property<string?>(TraceParentProperty).CurrentValue;
 
     public async Task<IReadOnlyList<Message>> FindAwaitingReceiptAsync(
         DateTimeOffset olderThan,
@@ -153,5 +171,31 @@ internal sealed class MessageRepository(RelayDbContext context) : IMessageReposi
             : await FindAsync(id.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    public void Add(Message message) => context.Messages.Add(message);
+    /// <summary>
+    /// The shadow property carrying the submission's trace context.
+    /// </summary>
+    /// <remarks>
+    /// Named here and in the entity configuration. A string used in two places is
+    /// a rename waiting to break one of them silently — EF resolves shadow
+    /// properties by name at runtime, so a mismatch is not a compile error.
+    /// </remarks>
+    internal const string TraceParentProperty = "submission_trace_parent";
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Captures the ambient trace context onto the message as it is added, so a
+    /// worker dispatching it hours later can link back to the request that
+    /// created it (ADR 0014).
+    /// <para>
+    /// Done here rather than in the handler because it is a persistence concern:
+    /// the application layer should not know that tracing metadata is stored, and
+    /// the domain must not.
+    /// </para>
+    /// </remarks>
+    public void Add(Message message)
+    {
+        EntityEntry<Message> entry = context.Messages.Add(message);
+
+        entry.Property<string?>(TraceParentProperty).CurrentValue = Activity.Current?.Id;
+    }
 }

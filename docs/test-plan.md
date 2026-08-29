@@ -389,3 +389,28 @@ provider assemblies were ever loaded. The failure was silent by construction:
 discovery finding nothing looks exactly like there being nothing to find, so the
 API had been running with zero providers and every earlier test had passed anyway
 because none of them needed one. Discovery now scans the deployment directory.
+
+## TR — Trace linking
+
+`tests/Relay.Application.UnitTests/Observability/TraceLinkTests.cs`
+
+| Id | Scenario | Expected |
+|---|---|---|
+| TR01 | No submission context recorded | A span, with no link |
+| TR02 | An unparseable context | A span, with no link |
+| TR03 | A valid submission context | Linked to that trace |
+| TR04 | A valid submission context | A **new** trace id, no parent span |
+| TR05 | Another activity is current | Still a new trace, still linked |
+
+**TR04 is the assertion the design rests on.** Sharing a trace id with the
+submission would leave the backend holding one trace open from submission until
+the last delivery receipt — possibly hours — and computing latency percentiles
+over it.
+
+**TR05 caught a real defect on its first run.** `StartActivity` with
+`parentContext: default` does not mean "no parent": .NET reads it as "no parent
+was specified" and falls back to `Activity.Current`. A dispatch running inside any
+other span therefore continued that span's trace, silently. Nothing in the worker
+is ambient today, so it would have surfaced the first time dispatch ran inside a
+request — in one hosting shape and not the other, which is the worst way to find
+a bug. `Activity.Current` is now cleared for the duration of the start call.

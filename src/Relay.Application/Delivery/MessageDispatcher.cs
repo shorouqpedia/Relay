@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Relay.Application.Observability;
 using Relay.Domain.Common;
 using Relay.Domain.Messaging;
 
@@ -13,7 +15,7 @@ namespace Relay.Application.Delivery;
 /// work has to close around a single message so that one failing delivery does
 /// not roll back the outcomes of every other message in the batch.
 /// <para>
-/// The ordering inside <see cref="DispatchAsync"/> is the design. The claim is
+/// The ordering inside the dispatch method is the design. The claim is
 /// committed <em>before</em> the provider is called, so that a process dying
 /// during the call leaves a row in <see cref="MessageStatus.Dispatching"/> that
 /// the recovery loop can find. Calling first and recording afterwards would be
@@ -31,29 +33,57 @@ public sealed class MessageDispatcher(
     ILogger<MessageDispatcher> logger)
 {
     /// <summary>
-    /// Dispatches one message.
+    /// Dispatches one claimed message.
     /// </summary>
+    /// <remarks>
+    /// Takes a <see cref="ClaimedMessage"/> rather than a bare
+    /// <see cref="Message"/>, so the trace the message was submitted under travels
+    /// with it. The span started here is a <em>new trace with a link</em> back to
+    /// that submission, not a continuation of it: the request that accepted the
+    /// message finished long ago — possibly hours — and making its span the parent
+    /// would produce a trace with no end and a duration that destroys any latency
+    /// percentile computed over it (ADR 0014).
+    /// </remarks>
     /// <returns>
     /// The outcome recorded, or a failure when no provider could be chosen. A
     /// failure here is not an error condition — it usually means every provider
     /// for the channel is circuit-broken, and the message stays pending.
     /// </returns>
     public async Task<Result<AttemptOutcome>> DispatchAsync(
-        Message message,
+        ClaimedMessage claimed,
         CancellationToken cancellationToken)
     {
+        Message message = claimed.Message;
+
+        using Activity? activity = RelayTelemetry.StartLinked(
+            RelayTelemetry.Spans.Dispatch,
+            claimed.SubmissionTraceParent,
+            ActivityKind.Client);
+
+        activity?.SetTag(RelayTelemetry.Tags.MessageId, message.Id.Value);
+        activity?.SetTag(RelayTelemetry.Tags.Channel, message.Channel.ToString());
+        activity?.SetTag(RelayTelemetry.Tags.Attempt, message.AttemptCount + 1);
+
         Result<ProviderProfile> routed = router.Route(message);
 
         if (routed.IsFailure)
         {
+            // Not an error span. Every provider being circuit-broken is a
+            // condition the system handles by leaving the message pending, and
+            // marking it as an error would fill an error dashboard with a state
+            // that resolves itself.
+            activity?.SetTag(RelayTelemetry.Tags.Outcome, routed.Error.Code);
+
             return Result<AttemptOutcome>.Failure(routed.Error);
         }
 
         ProviderProfile provider = routed.Value;
 
-        Result claimed = message.BeginDispatch(provider.Id, clock.GetUtcNow());
+        activity?.SetTag(RelayTelemetry.Tags.Provider, provider.Id.Value);
 
-        if (claimed.IsFailure)
+        Result beganDispatch = message.BeginDispatch(provider.Id, clock.GetUtcNow());
+
+        if (beganDispatch.IsFailure)
         {
             // The message moved under us between being claimed from the database
             // and reaching here — cancelled, or picked up by another worker whose
@@ -63,10 +93,10 @@ public sealed class MessageDispatcher(
                 logger.LogDebug(
                     "Message {MessageId} was no longer dispatchable: {Error}.",
                     message.Id.Value,
-                    claimed.Error.Code);
+                    beganDispatch.Error.Code);
             }
 
-            return Result<AttemptOutcome>.Failure(claimed.Error);
+            return Result<AttemptOutcome>.Failure(beganDispatch.Error);
         }
 
         // Committed before the call. This is the write that makes a crash during
@@ -103,6 +133,10 @@ public sealed class MessageDispatcher(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        activity?.SetTag(RelayTelemetry.Tags.Outcome, outcome.Outcome.ToString());
+        activity?.SetTag(RelayTelemetry.Tags.Status, message.Status.ToString());
+        activity?.SetTag(RelayTelemetry.Tags.ProviderMessageId, outcome.ProviderMessageId);
 
         logger.LogInformation(
             "Message {MessageId} attempt {Attempt} on {ProviderId} ended {Outcome}; now {Status}.",

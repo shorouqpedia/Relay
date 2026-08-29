@@ -215,16 +215,16 @@ public sealed class MessagePersistenceTests(PostgresFixture postgres)
         await using var txTwo = await workerTwo.Database
             .BeginTransactionAsync(TestContext.Current.CancellationToken);
 
-        IReadOnlyList<Message> claimedByOne = await new MessageRepository(workerOne)
+        IReadOnlyList<ClaimedMessage> claimedByOne = await new MessageRepository(workerOne)
             .ClaimPendingAsync(3, TestContext.Current.CancellationToken);
-        IReadOnlyList<Message> claimedByTwo = await new MessageRepository(workerTwo)
+        IReadOnlyList<ClaimedMessage> claimedByTwo = await new MessageRepository(workerTwo)
             .ClaimPendingAsync(3, TestContext.Current.CancellationToken);
 
         claimedByOne.ShouldNotBeEmpty();
         claimedByTwo.ShouldNotBeEmpty();
 
-        HashSet<MessageId> one = [.. claimedByOne.Select(m => m.Id)];
-        HashSet<MessageId> two = [.. claimedByTwo.Select(m => m.Id)];
+        HashSet<MessageId> one = [.. claimedByOne.Select(c => c.Message.Id)];
+        HashSet<MessageId> two = [.. claimedByTwo.Select(c => c.Message.Id)];
 
         one.Overlaps(two).ShouldBeFalse();
 
@@ -260,10 +260,10 @@ public sealed class MessagePersistenceTests(PostgresFixture postgres)
         await using var transaction = await worker.Database
             .BeginTransactionAsync(TestContext.Current.CancellationToken);
 
-        IReadOnlyList<Message> claimed = await new MessageRepository(worker)
+        IReadOnlyList<ClaimedMessage> claimed = await new MessageRepository(worker)
             .ClaimPendingAsync(3, TestContext.Current.CancellationToken);
 
-        claimed.Select(m => m.Id).ShouldBe(inOrder);
+        claimed.Select(c => c.Message.Id).ShouldBe(inOrder);
 
         await transaction.RollbackAsync(TestContext.Current.CancellationToken);
     }

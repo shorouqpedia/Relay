@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Relay.Infrastructure.Delivery;
 using Relay.Infrastructure.Persistence;
+using Relay.Infrastructure.Observability;
 using Relay.Infrastructure.Persistence.Outbox;
 using Relay.Worker;
 using Serilog;
@@ -21,6 +22,7 @@ builder.Services.AddSerilog((services, configuration) => configuration
 
 builder.Services.AddRelayPersistence(builder.Configuration);
 builder.Services.AddRelayDelivery(builder.Configuration);
+builder.Services.AddRelayObservability(builder.Configuration, "relay-worker");
 
 builder.Services
     .AddOptions<PipelineOptions>()

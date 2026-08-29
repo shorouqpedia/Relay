@@ -42,16 +42,16 @@ internal sealed class DispatchLoop(
         IMessageRepository messages = services.GetRequiredService<IMessageRepository>();
         MessageDispatcher dispatcher = services.GetRequiredService<MessageDispatcher>();
 
-        IReadOnlyList<Message> claimed = await messages
+        IReadOnlyList<ClaimedMessage> batch = await messages
             .ClaimPendingAsync(_options.BatchSize, cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (Message message in claimed)
+        foreach (ClaimedMessage claimed in batch)
         {
-            await dispatcher.DispatchAsync(message, cancellationToken).ConfigureAwait(false);
+            await dispatcher.DispatchAsync(claimed, cancellationToken).ConfigureAwait(false);
         }
 
-        return claimed.Count;
+        return batch.Count;
     }
 }
 

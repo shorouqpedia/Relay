@@ -1,9 +1,11 @@
 using Asp.Versioning;
 using Asp.Versioning.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Relay.Api;
 using Relay.Application;
 using Relay.Domain.Common;
 using Relay.Infrastructure.Delivery;
+using Relay.Infrastructure.Observability;
 using Relay.Infrastructure.Persistence;
 using Scalar.AspNetCore;
 using Serilog;
@@ -60,8 +62,11 @@ builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Instance ??= context.HttpContext.Request.Path);
 
+builder.Services.AddRelayObservability(builder.Configuration, "relay-api");
+
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<RelayDbContext>("database");
+    .AddDbContextCheck<RelayDbContext>("database", tags: ["ready"])
+    .AddCheck<ProviderHealthCheck>("providers", tags: ["ready"]);
 
 
 WebApplication app = builder.Build();
@@ -87,7 +92,21 @@ app.MapGroup(string.Empty)
     .WithApiVersionSet(versions)
     .MapCallbacks();
 
-app.MapHealthChecks("/health");
+// Two endpoints, because they answer different questions.
+//
+// Liveness asks "is this process wedged?" and must not depend on anything
+// external — a database outage that fails liveness gets every instance restarted
+// in a loop, turning a recoverable dependency failure into an outage of its own.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+
+// Readiness asks "can this instance do useful work?" and does check dependencies.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+});
 
 if (app.Environment.IsDevelopment())
 {

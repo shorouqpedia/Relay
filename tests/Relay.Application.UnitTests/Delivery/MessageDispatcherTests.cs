@@ -22,7 +22,7 @@ public sealed class MessageDispatcherTests
         Message message = new MessageBuilder().Build();
 
         Result<AttemptOutcome> result = await harness.Dispatcher
-            .DispatchAsync(message, TestContext.Current.CancellationToken);
+            .DispatchAsync(new ClaimedMessage(message, null), TestContext.Current.CancellationToken);
 
         result.Value.ShouldBe(AttemptOutcome.Accepted);
         message.Status.ShouldBe(MessageStatus.Sent);
@@ -35,7 +35,7 @@ public sealed class MessageDispatcherTests
         var harness = new Harness().WithOutcome(AttemptOutcome.Accepted);
         Message message = new MessageBuilder().Build();
 
-        await harness.Dispatcher.DispatchAsync(message, TestContext.Current.CancellationToken);
+        await harness.Dispatcher.DispatchAsync(new ClaimedMessage(message, null), TestContext.Current.CancellationToken);
 
         // The ordering is the whole point. A process that dies during the provider
         // call must leave a row in Dispatching for the recovery loop to find; if
@@ -52,7 +52,7 @@ public sealed class MessageDispatcherTests
         var harness = new Harness().WithOutcome(AttemptOutcome.Rejected, failureReason: "blocked");
         Message message = new MessageBuilder().Build();
 
-        await harness.Dispatcher.DispatchAsync(message, TestContext.Current.CancellationToken);
+        await harness.Dispatcher.DispatchAsync(new ClaimedMessage(message, null), TestContext.Current.CancellationToken);
 
         message.Status.ShouldBe(MessageStatus.Failed);
         message.IsTerminal.ShouldBeTrue();
@@ -64,7 +64,7 @@ public sealed class MessageDispatcherTests
         var harness = new Harness().WithOutcome(AttemptOutcome.TransientFailure, failureReason: "502");
         Message message = new MessageBuilder().WithMaxAttempts(3).Build();
 
-        await harness.Dispatcher.DispatchAsync(message, TestContext.Current.CancellationToken);
+        await harness.Dispatcher.DispatchAsync(new ClaimedMessage(message, null), TestContext.Current.CancellationToken);
 
         message.Status.ShouldBe(MessageStatus.Pending);
         message.CurrentProviderId.ShouldBeNull();
@@ -78,7 +78,7 @@ public sealed class MessageDispatcherTests
             retryAfter: TimeSpan.FromSeconds(30));
 
         await harness.Dispatcher.DispatchAsync(
-            new MessageBuilder().Build(), TestContext.Current.CancellationToken);
+            new ClaimedMessage(new MessageBuilder().Build(), null), TestContext.Current.CancellationToken);
 
         // Health has to learn from every attempt, not only from failures the
         // router happened to notice. This is what closes the loop between one
@@ -95,7 +95,7 @@ public sealed class MessageDispatcherTests
         Message message = new MessageBuilder().Build();
 
         Result<AttemptOutcome> result = await harness.Dispatcher
-            .DispatchAsync(message, TestContext.Current.CancellationToken);
+            .DispatchAsync(new ClaimedMessage(message, null), TestContext.Current.CancellationToken);
 
         result.IsFailure.ShouldBeTrue();
         message.Status.ShouldBe(MessageStatus.Pending);
@@ -111,7 +111,7 @@ public sealed class MessageDispatcherTests
         message.Cancel(Now);
 
         Result<AttemptOutcome> result = await harness.Dispatcher
-            .DispatchAsync(message, TestContext.Current.CancellationToken);
+            .DispatchAsync(new ClaimedMessage(message, null), TestContext.Current.CancellationToken);
 
         // Cancelled between being claimed from the database and reaching here. The
         // provider must not be called: the send would be real and unrecordable.
