@@ -7,21 +7,11 @@ namespace Relay.Domain.Messaging;
 /// A message submitted for delivery, and everything known about what happened to it.
 /// </summary>
 /// <remarks>
-/// This is the aggregate root: the consistency boundary is a message together with
-/// its delivery attempts, and nothing outside it can change either.
-/// <para>
-/// The type has no public setters and no public constructor. Every state change
-/// goes through a named method that checks the transition is legal before making
-/// it, so an invalid state is not something to be guarded against at call sites —
-/// there is no API through which it can be reached. See ADR 0004.
-/// </para>
-/// <para>
-/// Every transition method returns a <see cref="Result"/> rather than throwing.
-/// Arriving too late is normal here: a delivery receipt can turn up after the
-/// message was dead-lettered, and a caller can retry a cancellation on a message
-/// that has since been sent. Those are expected outcomes of a healthy system, so
-/// they are return values (ADR 0005).
-/// </para>
+/// The aggregate root. There are no public setters and no public constructor:
+/// every state change is a named transition that checks it is legal first
+/// (ADR 0004), and reports an illegal one as a <see cref="Result"/> rather than
+/// an exception, because a late receipt or a repeated cancellation is a normal
+/// event in a healthy system, not a fault (ADR 0005).
 /// </remarks>
 public sealed class Message : AggregateRoot<MessageId>
 {
@@ -53,83 +43,57 @@ public sealed class Message : AggregateRoot<MessageId>
         Body = null!;
     }
 
-    /// <inheritdoc />
-    /// <remarks>
-    /// Domain code uses <see cref="Entity{TId}.Id"/>, which is typed. This is the untyped form
-    /// the outbox needs, and nothing in the domain should reach for it.
-    /// </remarks>
+    /// <summary>The untyped id the outbox needs. Domain code uses <see cref="Entity{TId}.Id"/>.</summary>
     public override Guid AggregateId => Id.Value;
 
-    /// <summary>The caller-supplied token that makes submission safe to repeat.</summary>
     public IdempotencyKey IdempotencyKey { get; private init; }
 
-    /// <summary>Where the message is going.</summary>
     public Recipient Recipient { get; private init; }
 
-    /// <summary>What the recipient will see.</summary>
     public MessageBody Body { get; private init; }
 
-    /// <summary>The channel, derived from the recipient so the two cannot disagree.</summary>
+    /// <summary>Derived from the recipient so the two cannot disagree.</summary>
     public ChannelType Channel => Recipient.Channel;
 
-    /// <summary>Where the message is in its lifecycle.</summary>
     public MessageStatus Status { get; private set; }
 
-    /// <summary>How many attempts this message is allowed in total.</summary>
     public int MaxAttempts { get; private init; }
 
     /// <summary>The provider currently handling, or last to have handled, this message.</summary>
     public ProviderId? CurrentProviderId { get; private set; }
 
-    /// <summary>Why the message reached a terminal failure, when it did.</summary>
     public string? FailureReason { get; private set; }
 
-    /// <summary>When the message was accepted, in UTC.</summary>
     public DateTimeOffset CreatedAt { get; private init; }
 
     /// <summary>
-    /// When the current dispatch attempt began, if one is in progress.
+    /// When the current dispatch began. This is how the sweeper finds messages
+    /// whose worker died between claiming them and recording an outcome: nothing
+    /// else will ever move them out of <see cref="MessageStatus.Dispatching"/>.
     /// </summary>
-    /// <remarks>
-    /// A worker that dies between claiming a message and recording the attempt
-    /// leaves it stuck in <see cref="MessageStatus.Dispatching"/> forever, because
-    /// nothing else will ever move it. This timestamp is how the sweeper finds
-    /// those: a message dispatching for longer than any provider call could take
-    /// has lost its worker, not its provider.
-    /// </remarks>
     public DateTimeOffset? DispatchStartedAt { get; private set; }
 
-    /// <summary>When a provider accepted the message, if one has.</summary>
     public DateTimeOffset? SentAt { get; private set; }
 
-    /// <summary>When the message reached a terminal state, if it has.</summary>
     public DateTimeOffset? CompletedAt { get; private set; }
 
     /// <summary>Every attempt made, oldest first.</summary>
     public IReadOnlyList<DeliveryAttempt> Attempts => _attempts.AsReadOnly();
 
-    /// <summary>How many attempts have been made.</summary>
     public int AttemptCount => _attempts.Count;
 
-    /// <summary>Whether the lifecycle has ended. Nothing moves out of a terminal state.</summary>
     public bool IsTerminal => Status
         is MessageStatus.Delivered
         or MessageStatus.Failed
         or MessageStatus.DeadLettered
         or MessageStatus.Cancelled;
 
-    /// <summary>Whether the retry budget still has room.</summary>
     public bool HasAttemptsRemaining => AttemptCount < MaxAttempts;
 
     /// <summary>
-    /// Accepts a message for delivery.
+    /// The only way a <see cref="Message"/> comes into existence. The arguments
+    /// are already validated value objects, so only the retry budget is left to check.
     /// </summary>
-    /// <remarks>
-    /// The only way a <see cref="Message"/> comes into existence. Each argument is
-    /// already a validated value object, so this method has nothing left to check
-    /// beyond the retry budget — the parts that could be wrong were rejected before
-    /// they became values.
-    /// </remarks>
     public static Result<Message> Submit(
         IdempotencyKey idempotencyKey,
         Recipient recipient,
@@ -148,13 +112,10 @@ public sealed class Message : AggregateRoot<MessageId>
     }
 
     /// <summary>
-    /// Claims the message for a delivery attempt by a specific provider.
-    /// </summary>
-    /// <remarks>
-    /// Called by the worker before it talks to the provider, so that a second
-    /// worker picking up the same message loses the optimistic concurrency check
+    /// Claims the message for a provider. Done before the provider is called, so a
+    /// second worker picking up the same message loses the concurrency check
     /// rather than sending a duplicate.
-    /// </remarks>
+    /// </summary>
     public Result BeginDispatch(ProviderId providerId, DateTimeOffset now)
     {
         if (Status is not MessageStatus.Pending)
@@ -174,15 +135,7 @@ public sealed class Message : AggregateRoot<MessageId>
         return Result.Success();
     }
 
-    /// <summary>
-    /// Records what happened on an attempt and moves the message accordingly.
-    /// </summary>
-    /// <remarks>
-    /// This is the one method that decides the message's fate, and it is written as
-    /// a single switch over the outcome so that every case is visible together.
-    /// Splitting it per outcome would hide the fact that these five branches are
-    /// exhaustive and mutually exclusive.
-    /// </remarks>
+    /// <summary>Records what happened on an attempt and moves the message accordingly.</summary>
     public Result RecordAttempt(
         AttemptOutcome outcome,
         string? providerMessageId,
@@ -244,20 +197,11 @@ public sealed class Message : AggregateRoot<MessageId>
     }
 
     /// <summary>
-    /// Applies a delivery receipt from a provider.
+    /// Applies a delivery receipt. A duplicate receipt succeeds without changing
+    /// anything — telling the provider its retry failed would only make it retry
+    /// again. A receipt for a message in any other terminal state lost a race
+    /// against the sweeper and is reported as a conflict.
     /// </summary>
-    /// <remarks>
-    /// Receipts arrive out of band and out of order. Three cases matter:
-    /// <list type="bullet">
-    /// <item>the message is <see cref="MessageStatus.Sent"/> — apply it</item>
-    /// <item>the message is already <see cref="MessageStatus.Delivered"/> — a
-    /// duplicate receipt, which succeeds without changing anything, because
-    /// telling the provider its retry failed would only make it retry again</item>
-    /// <item>the message is in some other terminal state — the receipt lost a race
-    /// against the sweeper. It is a conflict, and the caller records it as an
-    /// audit fact rather than moving the message</item>
-    /// </list>
-    /// </remarks>
     public Result ConfirmDelivered(DateTimeOffset now)
     {
         if (Status is MessageStatus.Delivered)
@@ -277,10 +221,7 @@ public sealed class Message : AggregateRoot<MessageId>
         return Result.Success();
     }
 
-    /// <summary>
-    /// Applies a negative delivery receipt — the provider accepted the message and
-    /// later found it undeliverable.
-    /// </summary>
+    /// <summary>Applies a negative receipt: accepted by the provider, then found undeliverable.</summary>
     public Result ConfirmFailed(string? reason, DateTimeOffset now)
     {
         if (Status is MessageStatus.Failed)
@@ -303,18 +244,11 @@ public sealed class Message : AggregateRoot<MessageId>
 
     /// <summary>
     /// Returns a message to the queue after the worker that claimed it disappeared.
+    /// The message may already have reached the provider, so this risks a
+    /// duplicate send; the alternative is a message no worker will ever pick up
+    /// again (ADR 0008). The lost attempt is charged to the retry budget so a
+    /// message that keeps killing its worker is not released forever.
     /// </summary>
-    /// <remarks>
-    /// The message may already have reached the provider — the worker died at an
-    /// unknown point — so releasing it risks a duplicate send. It is still the
-    /// better option: the alternative is a message that no worker will ever pick
-    /// up again, which is a silent loss. This is the same trade as
-    /// <see cref="AttemptOutcome.Timeout"/>, made for the same reason (ADR 0008).
-    /// <para>
-    /// The lost attempt is recorded so the retry budget still shrinks. Without
-    /// that, a message that repeatedly kills its worker would be released forever.
-    /// </para>
-    /// </remarks>
     public Result ReleaseStuckDispatch(DateTimeOffset now)
     {
         if (Status is not MessageStatus.Dispatching)
@@ -339,14 +273,9 @@ public sealed class Message : AggregateRoot<MessageId>
     }
 
     /// <summary>
-    /// Gives up on a message whose outcome never arrived.
+    /// Gives up waiting for an outcome. The message may well have been delivered;
+    /// what is recorded is that Relay stopped waiting to find out.
     /// </summary>
-    /// <remarks>
-    /// Called by the reconciliation sweeper for messages sitting in
-    /// <see cref="MessageStatus.Sent"/> past their receipt window. The message may
-    /// well have been delivered; what is being recorded is that Relay stopped
-    /// waiting to find out.
-    /// </remarks>
     public Result Abandon(string reason, DateTimeOffset now)
     {
         if (IsTerminal)
@@ -363,13 +292,9 @@ public sealed class Message : AggregateRoot<MessageId>
     }
 
     /// <summary>
-    /// Withdraws a message that has not been handed to a provider yet.
+    /// Withdraws a message not yet handed to a provider. Once a provider has it
+    /// there is no way to unsend, and reporting success would be a lie.
     /// </summary>
-    /// <remarks>
-    /// Only <see cref="MessageStatus.Pending"/> can be cancelled. Once a provider
-    /// has the message, Relay has no way to unsend it, and reporting success would
-    /// be a lie the caller would act on.
-    /// </remarks>
     public Result Cancel(DateTimeOffset now)
     {
         if (Status is not MessageStatus.Pending)
