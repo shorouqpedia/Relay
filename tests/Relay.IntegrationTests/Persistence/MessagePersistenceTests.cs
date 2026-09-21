@@ -260,10 +260,18 @@ public sealed class MessagePersistenceTests(PostgresFixture postgres)
         await using var transaction = await worker.Database
             .BeginTransactionAsync(TestContext.Current.CancellationToken);
 
+        // The fixture is shared across the collection and nothing truncates between
+        // tests, so other scenarios leave their own Pending rows behind — some with
+        // the same created_at as the newest of these three. Claiming exactly three
+        // and expecting exactly these three therefore depended on which test ran
+        // first. Claim widely and assert the order of the three among the rest.
         IReadOnlyList<ClaimedMessage> claimed = await new MessageRepository(worker)
-            .ClaimPendingAsync(3, TestContext.Current.CancellationToken);
+            .ClaimPendingAsync(100, TestContext.Current.CancellationToken);
 
-        claimed.Select(c => c.Message.Id).ShouldBe(inOrder);
+        claimed
+            .Select(c => c.Message.Id)
+            .Where(inOrder.Contains)
+            .ShouldBe(inOrder);
 
         await transaction.RollbackAsync(TestContext.Current.CancellationToken);
     }
