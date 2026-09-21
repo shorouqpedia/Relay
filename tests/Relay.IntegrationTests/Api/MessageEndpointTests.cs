@@ -15,8 +15,12 @@ namespace Relay.IntegrationTests.Api;
 /// <para>Scenario ids <c>IT01</c>–<c>IT12</c> in <c>docs/test-plan.md</c>.</para>
 /// </remarks>
 [Collection(RelayApiCollection.Name)]
-public sealed class MessageEndpointTests(RelayApiFactory factory)
+public sealed class MessageEndpointTests(RelayApiFactory factory) : IAsyncLifetime
 {
+    public ValueTask InitializeAsync() => new(factory.ResetAsync());
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task IT01_Submit_WithAValidRequest_Returns201AndTheMessageId()
     {

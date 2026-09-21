@@ -11,8 +11,12 @@ namespace Relay.IntegrationTests.Persistence;
 /// </summary>
 /// <remarks>Scenario ids <c>OB01</c>–<c>OB06</c> in <c>docs/test-plan.md</c>.</remarks>
 [Collection(PostgresCollection.Name)]
-public sealed class OutboxTests(PostgresFixture postgres)
+public sealed class OutboxTests(PostgresFixture postgres) : IAsyncLifetime
 {
+    public ValueTask InitializeAsync() => new(postgres.ResetAsync());
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     private static readonly DateTimeOffset Now = new(2026, 2, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]

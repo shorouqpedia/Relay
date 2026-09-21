@@ -238,7 +238,8 @@ because a reader cannot tell which parts are still true.
   secret-bearing key a value, or when a connection string carries a password.
 - The integration tests run against a real PostgreSQL, and migrations are applied
   to a throwaway database so a migration that does not apply fails here rather
-  than at deploy time.
+  than at deploy time. Every test starts from empty tables (Respawn), so no test
+  can pass or fail because of what ran before it.
 - `docker compose up` is exercised on every push: a message is submitted, and CI
   fails unless it reaches `Delivered` — through the worker, the upstream, and a
   signed callback. If the README's first instruction stops working, the build

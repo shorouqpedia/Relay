@@ -46,6 +46,12 @@ public sealed class RelayApiFactory : WebApplicationFactory<RelayApi>, IAsyncLif
         .WithPassword("relay")
         .Build();
 
+    private DatabaseReset? _reset;
+
+    /// <summary>Empties every table. Called by each test before it runs.</summary>
+    public Task ResetAsync() =>
+        (_reset ??= new DatabaseReset(_database.GetConnectionString())).ResetAsync();
+
     public async ValueTask InitializeAsync()
     {
         await _database.StartAsync();

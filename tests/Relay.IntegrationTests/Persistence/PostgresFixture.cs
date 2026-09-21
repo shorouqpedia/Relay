@@ -17,8 +17,8 @@ namespace Relay.IntegrationTests.Persistence;
 /// rests on (ADR 0010).
 /// <para>
 /// Shared across the collection rather than created per test, because container
-/// startup dominates the runtime. Tests therefore share a database and have to
-/// avoid colliding — each one generates its own idempotency keys.
+/// startup dominates the runtime. Tests share the database but not its contents:
+/// each one starts by emptying the tables (<see cref="DatabaseReset"/>).
 /// </para>
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
@@ -31,6 +31,11 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     /// <summary>Connection string for the running container.</summary>
     public string ConnectionString => _container.GetConnectionString();
+
+    private DatabaseReset? _reset;
+
+    /// <summary>Empties every table. Called by each test before it runs.</summary>
+    public Task ResetAsync() => (_reset ??= new DatabaseReset(ConnectionString)).ResetAsync();
 
     public async ValueTask InitializeAsync()
     {

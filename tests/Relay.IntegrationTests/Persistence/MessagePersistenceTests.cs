@@ -16,8 +16,12 @@ namespace Relay.IntegrationTests.Persistence;
 /// <para>Scenario ids <c>PR01</c>–<c>PR08</c> in <c>docs/test-plan.md</c>.</para>
 /// </remarks>
 [Collection(PostgresCollection.Name)]
-public sealed class MessagePersistenceTests(PostgresFixture postgres)
+public sealed class MessagePersistenceTests(PostgresFixture postgres) : IAsyncLifetime
 {
+    public ValueTask InitializeAsync() => new(postgres.ResetAsync());
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     private static readonly DateTimeOffset Now = new(2026, 2, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -260,18 +264,12 @@ public sealed class MessagePersistenceTests(PostgresFixture postgres)
         await using var transaction = await worker.Database
             .BeginTransactionAsync(TestContext.Current.CancellationToken);
 
-        // The fixture is shared across the collection and nothing truncates between
-        // tests, so other scenarios leave their own Pending rows behind — some with
-        // the same created_at as the newest of these three. Claiming exactly three
-        // and expecting exactly these three therefore depended on which test ran
-        // first. Claim widely and assert the order of the three among the rest.
+        // Exactly these three, in this order. The table is empty before the test
+        // runs, so there is nothing else a claim could pick up.
         IReadOnlyList<ClaimedMessage> claimed = await new MessageRepository(worker)
-            .ClaimPendingAsync(100, TestContext.Current.CancellationToken);
+            .ClaimPendingAsync(3, TestContext.Current.CancellationToken);
 
-        claimed
-            .Select(c => c.Message.Id)
-            .Where(inOrder.Contains)
-            .ShouldBe(inOrder);
+        claimed.Select(c => c.Message.Id).ShouldBe(inOrder);
 
         await transaction.RollbackAsync(TestContext.Current.CancellationToken);
     }

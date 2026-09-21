@@ -22,8 +22,12 @@ namespace Relay.IntegrationTests.Api;
 /// <para>Scenario ids <c>CB01</c>–<c>CB12</c> in <c>docs/test-plan.md</c>.</para>
 /// </remarks>
 [Collection(RelayApiCollection.Name)]
-public sealed class CallbackEndpointTests(RelayApiFactory factory)
+public sealed class CallbackEndpointTests(RelayApiFactory factory) : IAsyncLifetime
 {
+    public ValueTask InitializeAsync() => new(factory.ResetAsync());
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     private const string CallbackSecret = RelayApiFactory.PostalCallbackSecret;
     private const string Endpoint = "/api/v1/callbacks/email.postal";
 

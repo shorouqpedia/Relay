@@ -92,6 +92,7 @@
 
   <ItemGroup Label="Testcontainers">
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
+    <PackageVersion Include="Respawn" Version="7.0.0" />
   </ItemGroup>
 
 </Project>
