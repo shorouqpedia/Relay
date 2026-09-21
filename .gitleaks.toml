@@ -1,0 +1,36 @@
+# What the secret scanner may ignore, and why each exception exists.
+#
+# Every entry here is a place where a string that looks like a credential is
+# not one. The list is deliberately narrow: a path-based allowlist over tests/
+# would also excuse a real secret pasted into a test, so the rules below match
+# on what the values are rather than only on where they live.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Values that resemble credentials and are not."
+
+regexes = [
+    # Test fixtures. Every secret in the test suites is named as one, so that a
+    # value without this marker in a test file is still reported.
+    '''(contract|integration)-test-[a-z0-9-]+''',
+
+    # The compose stack's local-development values. They are in compose.yaml on
+    # purpose: a local database with no data worth protecting, and pretending
+    # otherwise by loading them from a .env teaches the wrong lesson about
+    # where secrets live.
+    '''relay-local-development-[a-z0-9-]+''',
+    '''local-development-(key|account)''',
+
+    # The marker the contract suite plants to prove credentials are masked. It
+    # is recognisable precisely so that nothing in the repository resembles a
+    # real key to a scanner — which makes it ironic that it needs listing here.
+    '''RELAY-CONTRACT-TEST-SECRET-MARKER''',
+]
+
+paths = [
+    # The development database password. Local, throwaway, and documented in
+    # the file itself.
+    '''compose\.yaml''',
+]
