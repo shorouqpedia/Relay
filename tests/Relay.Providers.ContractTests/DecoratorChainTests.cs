@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Relay.Domain.Messaging;
@@ -161,17 +162,43 @@ public sealed class DecoratorChainTests
     /// The ids of every provider module in the loaded assemblies.
     /// </summary>
     /// <remarks>
-    /// Found the same way the host finds them, so the set the container is
-    /// configured for is by construction the set it will discover.
+    /// Found the same way the host finds them — by loading every provider assembly
+    /// from the deployment directory — so the set the container is configured for
+    /// is by construction the set it will discover.
+    /// <para>
+    /// An earlier version asked <c>AppDomain.GetAssemblies()</c> instead, which
+    /// answers a different question: not "which providers are here" but "which
+    /// has the CLR happened to load so far". On Windows that was all of them; on
+    /// the Linux runner one had not been touched yet, was missing from this list,
+    /// was found by the host anyway, and failed options validation for settings
+    /// this method never generated.
+    /// </para>
     /// </remarks>
-    private static IEnumerable<string> DiscoverProviderIds() =>
-        AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Where(static assembly => !assembly.IsDynamic)
-            .SelectMany(static assembly => assembly.GetTypes())
-            .Where(static type =>
-                typeof(IProviderModule).IsAssignableFrom(type)
-                && type is { IsAbstract: false, IsInterface: false }
-                && type.GetConstructor(Type.EmptyTypes) is not null)
-            .Select(static type => ((IProviderModule)Activator.CreateInstance(type)!).Descriptor.Id.Value);
+    private static IEnumerable<string> DiscoverProviderIds()
+    {
+        foreach (string path in Directory.EnumerateFiles(
+                     AppContext.BaseDirectory,
+                     "Relay.Providers.*.dll"))
+        {
+            Assembly assembly;
+            try
+            {
+                assembly = Assembly.LoadFrom(path);
+            }
+            catch (Exception exception) when (exception is BadImageFormatException or FileLoadException)
+            {
+                continue;
+            }
+
+            foreach (Type type in assembly.GetTypes())
+            {
+                if (typeof(IProviderModule).IsAssignableFrom(type)
+                    && type is { IsAbstract: false, IsInterface: false }
+                    && type.GetConstructor(Type.EmptyTypes) is not null)
+                {
+                    yield return ((IProviderModule)Activator.CreateInstance(type)!).Descriptor.Id.Value;
+                }
+            }
+        }
+    }
 }
