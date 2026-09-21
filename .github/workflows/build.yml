@@ -106,6 +106,12 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Explicit, because dotnet ef reads the project's metadata before it builds
+      # anything, and that read needs the assets file a restore produces. The
+      # first run on GitHub failed here with NETSDK1004 for exactly that reason.
+      - name: Restore
+        run: dotnet restore src/Relay.Infrastructure
+
       - name: Install EF tooling
         run: dotnet tool install --global dotnet-ef --version 10.0.11
 
